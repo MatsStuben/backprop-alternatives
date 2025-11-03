@@ -87,7 +87,6 @@ def three_factor_step(model, X, target, loss_fn, eta=1e-3, sigma=0.01):
             eps_b = eps_b / ((scaling_factor*0.5) + 1e-8)
  
             eligibility_w = torch.bmm(x_in.unsqueeze(2), x_out.unsqueeze(1))
-            # I want eligibility_2 to be just 1, but need the correct shape. 
             dW = (eps_w * eligibility_w.transpose(1, 2) * norm_reward.view(-1, 1, 1) * eta).mean(dim=0)
             new_weights = layer.weight + dW
             normalized_weights = normalize_layer_weights(new_weights, layer.in_features, c=1)
