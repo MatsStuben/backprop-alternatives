@@ -6,7 +6,7 @@ from sklearn.datasets import fetch_california_housing
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from three_factor_MLP import MLP, three_factor_weight_step, weight_perturb_step, backprop_step, weight_perturb_step_momentum, three_factor_activation_step
+from learning_rules_MLP import MLP, three_factor_weight_step, weight_perturb_step, backprop_step, weight_perturb_step_momentum, three_factor_activation_step
 
 if __name__ == "__main__":
     print("Loading California Housing dataset...")

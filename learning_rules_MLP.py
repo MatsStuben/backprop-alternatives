@@ -34,7 +34,7 @@ class MLP(nn.Module):
                 h = self.activation(u)
         return h
 
-    def forward_perturb(self, x, sigma):
+    def forward_perturb_weights(self, x, sigma):
         """
         Forward pass during training: add noise to weights and biases.
         """
@@ -63,11 +63,37 @@ class MLP(nn.Module):
 
             noises.append((eps_w, eps_b))
         return ys, xs, noises
+    
+    def forward_perturb_activation(self, x, sigma):
+        acts = [x]          # acts[0] = input, acts[i+1] = clean output of layer i
+        noises = []
+        last = len(self.layers) - 1
+        a_noisy = x
+
+        for i, layer in enumerate(self.layers):
+            z_clean = layer(acts[-1])
+            if i == last:
+                a_clean = self.output_activation(z_clean) if self.output_activation else z_clean
+            else:
+                a_clean = self.activation(z_clean)
+            acts.append(a_clean)
+
+            z_noisy = layer(a_noisy)
+            if i == last:
+                a_noisy = self.output_activation(z_noisy) if self.output_activation else z_noisy
+            else:
+                a_noisy = self.activation(z_noisy)
+
+            eps = torch.randn_like(a_noisy)
+            noises.append(eps)
+            a_noisy = a_noisy + sigma * eps
+
+        return acts, noises, a_noisy
 
 def three_factor_weight_step(model, X, target, eta=0.5, sigma=0.1):
 
     model.train()
-    ys, xs, noises = model.forward_perturb(X, sigma)
+    ys, xs, noises = model.forward_perturb_weights(X, sigma)
     y_out = ys[-1]
     loss_vec = F.mse_loss(y_out, target, reduction='none')
 
@@ -106,115 +132,50 @@ def three_factor_weight_step(model, X, target, eta=0.5, sigma=0.1):
 
 def three_factor_activation_step(model, X, target, eta=0.5, sigma=0.1):
     """
-    Node perturbation + three-factor rule:
-      reward = -loss (noisy forward)
-      baseline = mean(reward)
-      gradient estimate: a_i * phi'(z_j) * ( (R - b) * ξ_j / σ )
-    Final layer kept linear if model.output_activation is None.
+    Three-factor node-perturbation update:
+    grad ≈ (reward - baseline) * (eps / sigma) * activation_derivative * pre-activity
     """
     model.train()
-    batch_size = X.shape[0]
-    final_layer = len(model.layers) - 1
+    last = len(model.layers) - 1
 
-    # ----- 1) Clean forward (store pre-activation z and activation a) -----
-    xs = []          # inputs to each layer
-    acts = []        # activations of each layer
-    preacts = []     # pre-activations z_j (needed for derivatives if custom activation)
-    h = X
-    for i, layer in enumerate(model.layers):
-        xs.append(h)
-        z = h @ layer.weight.T + layer.bias        # (B, out)
-        preacts.append(z)
-        if i == final_layer:
-            h = model.output_activation(z) if model.output_activation else z
-        else:
-            h = model.activation(z)
-        acts.append(h)
-    y_clean = acts[-1]
+    acts, noises, y_noisy = model.forward_perturb_activation(X, sigma)
+    clean_output = acts[-1]
 
-    # Clean loss (for logging)
-    loss_vec_clean = F.mse_loss(y_clean, target, reduction='none')
-    if loss_vec_clean.dim() > 1:
-        loss_vec_clean = loss_vec_clean.mean(dim=1)
-    L_clean = loss_vec_clean.view(-1)  # (B,)
+    loss_noisy = F.mse_loss(y_noisy, target, reduction='none')
+    if loss_noisy.dim() > 1:
+        loss_noisy = loss_noisy.mean(dim=1)
+    loss_vec = loss_noisy.view(-1)
 
-    # ----- 2) Noisy forward: add noise to activations (node perturbation) -----
-    noise_list = []
-    h_tilde = X
-    for i, layer in enumerate(model.layers):
-        z = h_tilde @ layer.weight.T + layer.bias
-        if i == final_layer:
-            a = model.output_activation(z) if model.output_activation else z
-        else:
-            a = model.activation(z)
-
-        eps = torch.randn_like(a)          # ξ_j
-        noise_list.append(eps)
-        a_tilde = a + sigma * eps
-        h_tilde = a_tilde
-    y_tilde = h_tilde
-
-    loss_vec_noisy = F.mse_loss(y_tilde, target, reduction='none')
-    if loss_vec_noisy.dim() > 1:
-        loss_vec_noisy = loss_vec_noisy.mean(dim=1)
-    L_noisy = loss_vec_noisy.view(-1)
-
-    # ----- 3) Reward signal -----
     with torch.no_grad():
-        reward = -L_noisy                      # higher reward = lower loss
+        reward = -loss_vec
         baseline = reward.mean()
-        norm_reward = reward - baseline        # (B,)
+        advantage = reward - baseline  # (B,)
 
-        # ----- 4) Weight updates -----
         for i, layer in enumerate(model.layers):
-            x_in  = xs[i]                      # (B, in_dim)
-            a     = acts[i]                    # (B, out_dim) clean activation
-            eps   = noise_list[i]              # (B, out_dim)
+            x_in = acts[i]        # layer input
+            act = acts[i+1]       # layer clean output
+            eps = noises[i]
 
-            # dR/da_j ≈ (R - b) * ξ_j / σ
-            dR_da_est = norm_reward.view(-1, 1) * eps / (sigma + 1e-8)
+            act_deriv = _activation_derivative(
+                act,
+                model.output_activation if i == last else model.activation
+            )
 
-            # Activation derivative φ'(z_j):
-            if i == final_layer:
-                # Linear output (unless custom output_activation provided)
-                if model.output_activation is None:
-                    phi_prime = torch.ones_like(a)
-                else:
-                    # If you later use a custom output activation, add its derivative here
-                    if model.output_activation is torch.sigmoid:
-                        phi_prime = a * (1 - a)
-                    else:
-                        phi_prime = torch.ones_like(a)  # fallback
-            else:
-                # Hidden layer derivative
-                if model.activation is torch.sigmoid:
-                    phi_prime = a * (1 - a)
-                elif model.activation is torch.tanh:
-                    phi_prime = 1 - a.pow(2)
-                else:
-                    # ReLU or other: approximate derivative
-                    if model.activation is torch.relu:
-                        phi_prime = (preacts[i] > 0).float()
-                    else:
-                        phi_prime = torch.ones_like(a)
+            delta = advantage.view(-1, 1) * eps / (sigma + 1e-12)
+            delta *= act_deriv
 
-            delta_j_R = dR_da_est * phi_prime         # (B, out_dim)
-
-            # dW_ij = mean_b[ a_i_in * delta_j_R ]
-            dW = torch.bmm(delta_j_R.unsqueeze(2), x_in.unsqueeze(1))  # (B, out_dim, in_dim)
-            dW = dW.mean(dim=0)                                        # (out_dim, in_dim)
-
-            db = delta_j_R.mean(dim=0)                                 # (out_dim,)
+            dW = torch.bmm(delta.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
+            db = delta.mean(dim=0)
 
             layer.weight += eta * dW
-            layer.bias   += eta * db
+            layer.bias += eta * db
 
-    return L_clean.mean().item()
+    return F.mse_loss(clean_output, target, reduction='mean').item()
 
 def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1):
 
     model.train()
-    ys, xs, noises = model.forward_perturb(X, sigma)
+    ys, xs, noises = model.forward_perturb_weights(X, sigma)
     y_out = ys[-1]
     loss_vec = F.mse_loss(y_out, target, reduction='none')
 
@@ -244,7 +205,7 @@ def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1):
 def weight_perturb_step_momentum(model, X, target, momentum_w, momentum_b, eta=0.5, sigma=0.1):
 
     model.train()
-    ys, xs, noises = model.forward_perturb(X, sigma)
+    ys, xs, noises = model.forward_perturb_weights(X, sigma)
     y_out = ys[-1]
     loss_vec = F.mse_loss(y_out, target, reduction='none')
 
@@ -322,4 +283,19 @@ def normalize_layer_bias(bias, n_in, c=1.0):
 
     b_normalized = (bias - b_mean) * (target_std / b_std) + target_mean
     return b_normalized
+
+def _activation_derivative(act, activation):
+    """
+    Returns φ'(z) expressed via the activation output `act`.
+    Supports None, sigmoid, tanh, relu, and defaults to 1.
+    """
+    if activation is None:
+        return torch.ones_like(act)
+    if activation is torch.sigmoid:
+        return act * (1 - act)
+    if activation is torch.tanh:
+        return 1 - act.pow(2)
+    if activation is torch.relu:
+        return (act > 0).float()
+    return torch.ones_like(act)
 

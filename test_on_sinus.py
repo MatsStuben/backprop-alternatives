@@ -4,12 +4,14 @@ import torch.nn.functional as F
 import math
 import matplotlib.pyplot as plt
 
-from three_factor_MLP import MLP, three_factor_weight_step, weight_perturb_step, backprop_step, weight_perturb_step_momentum, three_factor_activation_step
+from learning_rules_MLP import MLP, three_factor_weight_step, weight_perturb_step, backprop_step, weight_perturb_step_momentum, three_factor_activation_step
 
 def generate_data(n=400, noise=0.1, seed=0):
     x = torch.linspace(-2*math.pi, 2*math.pi, n).unsqueeze(1)
     y = torch.sin(x) + noise * torch.randn_like(x)
     return x, y
+
+
 
 if __name__ == "__main__":
     X, Y = generate_data(n=128*10, noise=0.1, seed=1)
