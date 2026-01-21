@@ -37,16 +37,16 @@ if __name__ == "__main__":
 
             loss_backprop = backprop_step(model_backprop, X_batch, Y_batch, optimizer=optimizer_bp)
             loss_two_factor = weight_perturb_step(model_two_factor, X_batch, Y_batch,
-                                   eta=0.5, sigma=0.1)
+                                   eta=0.7, sigma=0.2)
             loss_three_factor = three_factor_weight_step(model_three_factor, X_batch, Y_batch, 
-                            eta=0.5, sigma=0.1)
+                            eta=0.9, sigma=0.1)
             loss_momentum, momentum_w, momentum_b = weight_perturb_step_momentum(
                 model_two_factor_momentum, X_batch, Y_batch,
                 momentum_w, momentum_b, eta=0.03, sigma=0.1
             )
 
             loss_node_perturb = three_factor_activation_step(model_node_perturb, X_batch, Y_batch,
-                                   eta=0.05, sigma=0.05)
+                                   eta=0.2, sigma=0.1)
 
         if epoch % 20 == 0 or epoch == epochs - 1:
             with torch.no_grad():

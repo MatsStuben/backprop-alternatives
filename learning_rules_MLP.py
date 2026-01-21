@@ -24,7 +24,6 @@ class MLP(nn.Module):
         final_layer = len(self.layers) - 1
         h = x
         for i, layer in enumerate(self.layers):
-            
             w = layer.weight
             b = layer.bias
             u = h @ w.T + b
@@ -39,17 +38,17 @@ class MLP(nn.Module):
         Forward pass during training: add noise to weights and biases.
         """
         batch_size = x.shape[0]
-        xs = [x]   
+        xs = [x]
         ys = []
         noises = []
         h = x
         for i, layer in enumerate(self.layers):
-            w = layer.weight        
+            w = layer.weight
             b = layer.bias
-            eps_w = torch.randn(batch_size, *w.shape) * sigma 
-            eps_b = torch.randn(batch_size, *b.shape) * sigma
+            eps_w = torch.randn(batch_size, *w.shape, device=w.device, dtype=w.dtype) * sigma
+            eps_b = torch.randn(batch_size, *b.shape, device=b.device, dtype=b.dtype) * sigma
 
-            w_used = w.unsqueeze(0) + eps_w 
+            w_used = w.unsqueeze(0) + eps_w
             b_used = b.unsqueeze(0) + eps_b
             u = torch.bmm(h.unsqueeze(1), w_used.transpose(1, 2)).squeeze(1) + b_used
             final_layer = len(self.layers) - 1
@@ -63,9 +62,9 @@ class MLP(nn.Module):
 
             noises.append((eps_w, eps_b))
         return ys, xs, noises
-    
+
     def forward_perturb_activation(self, x, sigma):
-        acts = [x]          # acts[0] = input, acts[i+1] = clean output of layer i
+        acts = [x]
         noises = []
         last = len(self.layers) - 1
         a_noisy = x
@@ -84,7 +83,7 @@ class MLP(nn.Module):
             else:
                 a_noisy = self.activation(z_noisy)
 
-            eps = torch.randn_like(a_noisy)
+            eps = torch.randn_like(a_noisy, device=a_noisy.device, dtype=a_noisy.dtype)
             noises.append(eps)
             a_noisy = a_noisy + sigma * eps
 
