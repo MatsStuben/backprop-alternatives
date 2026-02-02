@@ -33,7 +33,7 @@ class MLP(nn.Module):
                 h = self.activation(u)
         return h
 
-    def forward_perturb_weights(self, x, sigma):
+    def forward_weight_perturb(self, x, sigma):
         """
         Forward pass during training: add noise to weights and biases.
         """
@@ -63,7 +63,7 @@ class MLP(nn.Module):
             noises.append((eps_w, eps_b))
         return ys, xs, noises
 
-    def forward_perturb_activation(self, x, sigma):
+    def forward_activation_perturb(self, x, sigma):
         acts = [x]
         noises = []
         last = len(self.layers) - 1
@@ -89,10 +89,29 @@ class MLP(nn.Module):
 
         return acts, noises, a_noisy
 
+    def forward_activation_perturb_noisy(self, x, sigma):
+        acts = [x]
+        noises = []
+        last = len(self.layers) - 1
+        a_noisy = x
+
+        for i, layer in enumerate(self.layers):
+            z_noisy = layer(a_noisy)
+            eps = torch.randn_like(z_noisy, device=z_noisy.device, dtype=z_noisy.dtype)
+            noises.append(eps)
+            z_noisy = z_noisy + sigma * eps
+            if i == last:
+                a_noisy = self.output_activation(z_noisy) if self.output_activation else z_noisy
+            else:
+                a_noisy = self.activation(z_noisy)
+            acts.append(a_noisy)
+
+        return acts, noises, a_noisy
+
 def three_factor_weight_step(model, X, target, eta=0.5, sigma=0.1):
 
     model.train()
-    ys, xs, noises = model.forward_perturb_weights(X, sigma)
+    ys, xs, noises = model.forward_weight_perturb(X, sigma)
     y_out = ys[-1]
     loss_vec = F.mse_loss(y_out, target, reduction='none')
 
@@ -137,7 +156,7 @@ def three_factor_activation_step(model, X, target, eta=0.5, sigma=0.1):
     model.train()
     last = len(model.layers) - 1
 
-    acts, noises, y_noisy = model.forward_perturb_activation(X, sigma)
+    acts, noises, y_noisy = model.forward_activation_perturb(X, sigma)
     clean_output = acts[-1]
 
     loss_noisy = F.mse_loss(y_noisy, target, reduction='none')
@@ -171,10 +190,47 @@ def three_factor_activation_step(model, X, target, eta=0.5, sigma=0.1):
 
     return F.mse_loss(clean_output, target, reduction='mean').item()
 
+def three_factor_activation_step_noisy(model, X, target, eta=0.5, sigma=0.1):
+    model.train()
+    last = len(model.layers) - 1
+
+    acts, noises, y_noisy = model.forward_activation_perturb_noisy(X, sigma)
+
+    loss_noisy = F.mse_loss(y_noisy, target, reduction='none')
+    if loss_noisy.dim() > 1:
+        loss_noisy = loss_noisy.mean(dim=1)
+    loss_vec = loss_noisy.view(-1)
+
+    with torch.no_grad():
+        reward = -loss_vec
+        baseline = reward.mean()
+        advantage = reward - baseline
+
+        for i, layer in enumerate(model.layers):
+            x_in = acts[i]
+            act = acts[i+1]
+            eps = noises[i]
+
+            act_deriv = _activation_derivative(
+                act,
+                model.output_activation if i == last else model.activation
+            )
+
+            delta = advantage.view(-1, 1) * eps / (sigma + 1e-12)
+            delta *= act_deriv
+
+            dW = torch.bmm(delta.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
+            db = delta.mean(dim=0)
+
+            layer.weight += eta * dW
+            layer.bias += eta * db
+
+    return loss_vec.mean().item()
+
 def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1):
 
     model.train()
-    ys, xs, noises = model.forward_perturb_weights(X, sigma)
+    ys, xs, noises = model.forward_weight_perturb(X, sigma)
     y_out = ys[-1]
     loss_vec = F.mse_loss(y_out, target, reduction='none')
 
@@ -204,7 +260,7 @@ def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1):
 def weight_perturb_step_momentum(model, X, target, momentum_w, momentum_b, eta=0.5, sigma=0.1):
 
     model.train()
-    ys, xs, noises = model.forward_perturb_weights(X, sigma)
+    ys, xs, noises = model.forward_weight_perturb(X, sigma)
     y_out = ys[-1]
     loss_vec = F.mse_loss(y_out, target, reduction='none')
 
@@ -252,36 +308,6 @@ def backprop_step(model, X, target, optimizer, loss_fn=F.mse_loss):
     optimizer.step()
 
     return loss.item()
-
-
-def normalize_layer_weights(weights, n_in, c=1.0):
-    """
-    Normalize weights to have target mean=0 and std=sqrt(c/n_in).
-    """
-    target_std = math.sqrt(c / n_in)
-    target_mean = 0.0
-    
-    W_mean = weights.mean()
-    W_std = weights.std().clamp_min(1e-8)
-    
-    W_normalized = (weights - W_mean) * (target_std / W_std) + target_mean
-    
-    return W_normalized
-
-def normalize_layer_bias(bias, n_in, c=1.0):
-    """
-    Normalize biases to have mean=0 and std=sqrt(c/(4*n_in)).
-    """
-    if bias.numel() == 1:
-        return bias  # Single bias, no normalization needed
-    target_std = math.sqrt(c / (4 * n_in))
-    target_mean = 0.0
-
-    b_mean = bias.mean()
-    b_std = bias.std().clamp_min(1e-8)
-
-    b_normalized = (bias - b_mean) * (target_std / b_std) + target_mean
-    return b_normalized
 
 def _activation_derivative(act, activation):
     """
