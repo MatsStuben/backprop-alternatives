@@ -24,7 +24,6 @@ class MLP(nn.Module):
         final_layer = len(self.layers) - 1
         h = x
         for i, layer in enumerate(self.layers):
-            w = layer.weight
             b = layer.bias
             u = h @ w.T + b
             if i == final_layer:
@@ -32,6 +31,54 @@ class MLP(nn.Module):
             else:
                 h = self.activation(u)
         return h
+
+    def plot_weight_distributions(
+        model,
+        bins=50,
+        include_bias=True,
+        title=None,
+        save_path=None,
+        show=True,
+    ):
+        """
+        Plot per-layer weight (and optional bias) distributions for a model with `.layers`.
+        Returns (fig, axes).
+        """
+        n_layers = len(model.layers)
+        if n_layers == 0:
+            raise ValueError("Model has no layers to plot.")
+
+        fig, axes = plt.subplots(n_layers, 1, figsize=(7, 3 * n_layers), squeeze=False)
+        axes = axes.flatten()
+
+        for idx, layer in enumerate(model.layers):
+            w = layer.weight.detach().cpu().numpy().ravel()
+            ax = axes[idx]
+            ax.hist(w, bins=bins, alpha=0.7, label=f"Layer {idx} weights")
+
+            if include_bias and layer.bias is not None:
+                b = layer.bias.detach().cpu().numpy().ravel()
+                ax.hist(b, bins=bins, alpha=0.7, label=f"Layer {idx} bias")
+
+            ax.set_ylabel("Count")
+            ax.set_xlabel("Value")
+            ax.legend(loc="best")
+
+        if title:
+            fig.suptitle(title)
+
+        fig.tight_layout()
+
+        if save_path:
+            import os
+
+            os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+            fig.savefig(save_path, bbox_inches="tight")
+
+        if show:
+            plt.show()
+
+        return fig, axes
 
     def forward_weight_perturb(self, x, sigma):
         """
@@ -78,14 +125,14 @@ class MLP(nn.Module):
             acts.append(a_clean)
 
             z_noisy = layer(a_noisy)
+            eps = torch.randn_like(z_noisy, device=z_noisy.device, dtype=z_noisy.dtype)
+            noises.append(eps)
+            z_noisy = z_noisy + sigma * eps
+
             if i == last:
                 a_noisy = self.output_activation(z_noisy) if self.output_activation else z_noisy
             else:
                 a_noisy = self.activation(z_noisy)
-
-            eps = torch.randn_like(a_noisy, device=a_noisy.device, dtype=a_noisy.dtype)
-            noises.append(eps)
-            a_noisy = a_noisy + sigma * eps
 
         return acts, noises, a_noisy
 
