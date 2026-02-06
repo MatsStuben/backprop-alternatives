@@ -110,7 +110,7 @@ def main():
     BATCH_SIZE = 128
     SEEDS = [0, 1, 2]
 
-    ETA_GRID = [0.01, 0.03, 0.1, 0.3]
+    ETA_GRID = [0.1, 0.5, 0.7, 0.9]
     SIGMA_GRID = [0.03, 0.1, 0.2, 0.5]
 
     X, y = generate_sinus_data(n=128 * 10, noise=0.1, seed=None)
