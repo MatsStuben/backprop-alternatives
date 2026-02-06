@@ -1,3 +1,8 @@
+from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 import math
 import torch
 import torch.nn.functional as F
@@ -5,8 +10,10 @@ import matplotlib.pyplot as plt
 
 from learning_rules_MLP import (
     MLP,
+    init_signed_lognormal_weights,
     three_factor_weight_step,
     weight_perturb_step,
+    weight_perturb_step_multiplicative,
     backprop_step,
     weight_perturb_step_momentum,
     three_factor_activation_step,
@@ -23,12 +30,19 @@ def generate_data(n=400, noise=0.1, seed=0):
 
 if __name__ == "__main__":
     # Change this one line to switch method
-    METHOD = "npn"  # options: "bp", "wp", "wp3", "wp-m", "np", "npn"
+    METHOD = "wp-mult"  # options: "bp", "wp", "wp3", "wp-m", "np", "npn", "wp-mult"
 
     X, Y = generate_data(n=128 * 10, noise=0.1, seed=1)
     dimensions = (1, 8, 4, 1)
 
     model = MLP(dimensions, activation=torch.sigmoid, require_grad=(METHOD == "bp"))
+    if METHOD == "wp-mult":
+        init_signed_lognormal_weights(model, log_mu=1.0, log_sigma=0.5, p_inhib=0.2, by_neuron=False)
+        for i, layer in enumerate(model.layers):
+            w = layer.weight
+            print(
+                f"Init layer {i} weights finite={torch.isfinite(w).all().item()} max|w|={w.abs().max().item():.4e}"
+            )
     optimizer_bp = torch.optim.SGD(model.parameters(), lr=0.1) if METHOD == "bp" else None
 
     momentum_w = None
@@ -43,6 +57,9 @@ if __name__ == "__main__":
         "wp3": lambda xb, yb: three_factor_weight_step(model, xb, yb, eta=0.9, sigma=0.1),
         "np": lambda xb, yb: three_factor_activation_step(model, xb, yb, eta=0.2, sigma=0.1),
         "npn": lambda xb, yb: three_factor_activation_step_noisy(model, xb, yb, eta=0.2, sigma=0.1),
+        "wp-mult": lambda xb, yb: weight_perturb_step_multiplicative(
+            model, xb, yb, eta=0.7, sigma=0.5, max_mult_step=0.5
+        ),
     }
 
     def step_wp_m(xb, yb):
@@ -83,6 +100,12 @@ if __name__ == "__main__":
     test_mse = F.mse_loss(ys_pred, y_true, reduction="mean").item()
     print(f"Test MSE on grid: {test_mse:.6f}")
 
+    for i, layer in enumerate(model.layers):
+        w = layer.weight
+        print(
+            f"Layer {i} weights finite={torch.isfinite(w).all().item()} max|w|={w.abs().max().item():.4e}"
+        )
+
     plt.figure(figsize=(8, 5))
     plt.plot(xs.cpu().numpy(), y_true.cpu().numpy(), label="True sin(x)", color="C0")
     plt.plot(xs.cpu().numpy(), ys_pred.cpu().numpy(), label=f"{METHOD} prediction", color="C1")
@@ -94,3 +117,10 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
     print("Done")
+
+    model.plot_weight_distributions(
+        title=f"{METHOD} weight distributions",
+        bins=40,
+        include_bias=True,
+        show=True,
+    )

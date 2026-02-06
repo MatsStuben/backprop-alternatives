@@ -1,3 +1,8 @@
+from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -7,8 +12,10 @@ from sklearn.preprocessing import StandardScaler
 
 from learning_rules_MLP import (
     MLP,
+    init_signed_lognormal_weights,
     three_factor_weight_step,
     weight_perturb_step,
+    weight_perturb_step_multiplicative,
     backprop_step,
     weight_perturb_step_momentum,
     three_factor_activation_step,
@@ -18,7 +25,7 @@ from learning_rules_MLP import (
 
 if __name__ == "__main__":
     # Change this one line to switch method
-    METHOD = "npn"  # options: "bp", "wp", "wp3", "wp-m", "np", "npn"
+    METHOD = "wp-mult"  # options: "bp", "wp", "wp3", "wp-m", "np", "npn", "wp-mult"
 
     print("Loading California Housing dataset...")
     housing = fetch_california_housing()
@@ -47,6 +54,13 @@ if __name__ == "__main__":
     input_dim = X_train.shape[1]
     dimensions = (input_dim, 128, 64, 1)
     model = MLP(dimensions, activation=torch.sigmoid, require_grad=(METHOD == "bp"))
+    if METHOD == "wp-mult":
+        init_signed_lognormal_weights(model, log_mu=-2.0, log_sigma=1.0, p_inhib=0.2, by_neuron=True)
+        for i, layer in enumerate(model.layers):
+            w = layer.weight
+            print(
+                f"Init layer {i} weights finite={torch.isfinite(w).all().item()} max|w|={w.abs().max().item():.4e}"
+            )
 
     optimizer_bp = torch.optim.SGD(model.parameters(), lr=0.01) if METHOD == "bp" else None
 
@@ -62,6 +76,9 @@ if __name__ == "__main__":
         "wp3": lambda xb, yb: three_factor_weight_step(model, xb, yb, eta=0.05, sigma=0.1),
         "np": lambda xb, yb: three_factor_activation_step(model, xb, yb, eta=0.01, sigma=0.1),
         "npn": lambda xb, yb: three_factor_activation_step_noisy(model, xb, yb, eta=0.005, sigma=0.1),
+        "wp-mult": lambda xb, yb: weight_perturb_step_multiplicative(
+            model, xb, yb, eta=0.05, sigma=0.1, max_mult_step=0.1
+        ),
     }
 
     def step_wp_m(xb, yb):
@@ -111,6 +128,12 @@ if __name__ == "__main__":
 
     print(f"\nFinal Test MSE: {final_test_mse:.6f}")
 
+    for i, layer in enumerate(model.layers):
+        w = layer.weight
+        print(
+            f"Layer {i} weights finite={torch.isfinite(w).all().item()} max|w|={w.abs().max().item():.4e}"
+        )
+
     epochs_plot = list(range(epochs))
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
@@ -147,5 +170,12 @@ if __name__ == "__main__":
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
+
+    model.plot_weight_distributions(
+        title=f"{METHOD} weight distributions",
+        bins=40,
+        include_bias=True,
+        show=True,
+    )
 
     print("Done")

@@ -24,6 +24,7 @@ class MLP(nn.Module):
         final_layer = len(self.layers) - 1
         h = x
         for i, layer in enumerate(self.layers):
+            w = layer.weight
             b = layer.bias
             u = h @ w.T + b
             if i == final_layer:
@@ -154,6 +155,49 @@ class MLP(nn.Module):
             acts.append(a_noisy)
 
         return acts, noises, a_noisy
+
+def init_signed_lognormal_weights(
+    model: MLP,
+    log_mu: float = 0.0,
+    log_sigma: float = 1.0,
+    p_inhib: float = 0.0,
+    by_neuron: bool = False,
+) -> None:
+    """
+    Initialize weights so |w| ~ LogNormal(log_mu, log_sigma), with signs handled
+    separately (mirrored log-normal). If p_inhib > 0 and by_neuron=True, enforce
+    a Dale-like constraint by making a fraction p_inhib of presynaptic columns
+    inhibitory (all negative). This only changes initialization; training rules
+    like `weight_perturb_step` work unchanged.
+    """
+    if not 0.0 <= p_inhib <= 1.0:
+        raise ValueError("p_inhib must be in [0, 1].")
+
+    for layer in model.layers:
+        if not isinstance(layer, nn.Linear):
+            continue
+
+        with torch.no_grad():
+            w = layer.weight
+            mag = torch.exp(torch.randn_like(w) * log_sigma + log_mu)
+
+            if p_inhib == 0.0:
+                sign = (torch.randint(0, 2, w.shape, device=w.device, dtype=w.dtype) * 2) - 1
+            elif by_neuron:
+                inhib = torch.rand(w.shape[1], device=w.device) < p_inhib
+                sign = torch.where(inhib, -1.0, 1.0).to(dtype=w.dtype).unsqueeze(0).expand_as(w)
+            else:
+                inhib = torch.rand_like(w) < p_inhib
+                sign = torch.where(inhib, -1.0, 1.0).to(dtype=w.dtype)
+
+            layer.weight.copy_(sign * mag)
+            if layer.bias is not None:
+                layer.bias.zero_()
+
+            if "sign_mask" in layer._buffers:
+                layer._buffers["sign_mask"] = sign
+            else:
+                layer.register_buffer("sign_mask", sign)
 
 def three_factor_weight_step(model, X, target, eta=0.5, sigma=0.1):
 
@@ -304,6 +348,50 @@ def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1):
 
     return loss_vec.mean().item()
 
+def weight_perturb_step_multiplicative(
+    model,
+    X,
+    target,
+    eta: float = 0.5,
+    sigma: float = 0.1,
+    max_mult_step: float = 0.1,
+):
+    """
+    REINFORCE-style estimator like `weight_perturb_step`, but with multiplicative
+    weight updates (w <- w * mult). If `sign_mask` exists, it enforces Dale's
+    principle by restoring the original sign pattern; biases stay additive.
+    """
+
+    model.train()
+    ys, xs, noises = model.forward_weight_perturb(X, sigma)
+    y_out = ys[-1]
+    loss_vec = F.mse_loss(y_out, target, reduction='none')
+
+    if loss_vec.dim() > 1:
+        loss_vec = loss_vec.mean(dim=1)
+    loss_vec = loss_vec.view(-1)
+
+    with torch.no_grad():
+        reward = -loss_vec
+        norm_reward = reward - reward.mean()
+
+        for layer, (eps_w, eps_b) in zip(model.layers, noises):
+
+            dW = (eps_w * norm_reward.view(-1, 1, 1)).mean(dim=0) / (sigma + 1e-12)
+            db = (eps_b * norm_reward.unsqueeze(1)).mean(dim=0) / (sigma + 1e-12)
+
+            mult = 1.0 + eta * dW
+            mult = torch.clamp(mult, 1.0 - max_mult_step, 1.0 + max_mult_step)
+            new_weights = layer.weight * mult
+            if hasattr(layer, "sign_mask"):
+                new_weights = layer.sign_mask * new_weights.abs()
+            layer.weight.copy_(new_weights)
+
+            new_bias = layer.bias + eta * db
+            layer.bias.copy_(new_bias)
+
+    return loss_vec.mean().item()
+
 def weight_perturb_step_momentum(model, X, target, momentum_w, momentum_b, eta=0.5, sigma=0.1):
 
     model.train()
@@ -370,4 +458,3 @@ def _activation_derivative(act, activation):
     if activation is torch.relu:
         return (act > 0).float()
     return torch.ones_like(act)
-

@@ -1,3 +1,9 @@
+from pathlib import Path
+import sys
+import math
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -114,8 +120,8 @@ if __name__ == "__main__":
                 test_losses_bp.append(test_loss_bp)
                 test_losses_2f_momentum.append(test_loss_momentum)
                 test_losses_node_perturb.append(test_loss_node_perturb)
-                print(f"Epoch {epoch:3d} | Train - 3F: {train_loss_3f:.4f}, 2F: {train_loss_2f:.4f}, BP: {train_loss_bp:.4f}, 2F-M: {train_loss_momentum:.4f}, NP: {train_loss_node_perturb:.4f} | "
-                      f"Test - 3F: {test_loss_3f:.4f}, 2F: {test_loss_2f:.4f}, BP: {test_loss_bp:.4f}, 2F-M: {test_loss_momentum:.4f}, NP: {test_loss_node_perturb:.4f}")
+                    print(f"Epoch {epoch:3d} | Train - 3F: {train_loss_3f:.4f}, 2F: {train_loss_2f:.4f}, BP: {train_loss_bp:.4f}, 2F-M: {train_loss_momentum:.4f}, NP: {train_loss_node_perturb:.4f} | "
+                        f"Test - 3F: {test_loss_3f:.4f}, 2F: {test_loss_2f:.4f}, BP: {test_loss_bp:.4f}, 2F-M: {test_loss_momentum:.4f}, NP: {test_loss_node_perturb:.4f}")
 
     with torch.no_grad():
         y_pred_3f = model_three_factor(X_test_t)
@@ -166,15 +172,18 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
     
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    
     models = [
         (y_pred_3f, 'Three-Factor', final_test_mse_3f),
         (y_pred_2f, 'Two-Factor', final_test_mse_2f),
         (y_pred_bp, 'Backprop SGD', final_test_mse_bp),
-        (y_pred_momentum, 'Two-Factor Momentum', final_test_mse_momentum)
-        , (y_pred_node_perturb, 'Node-Perturbation', final_test_mse_node_perturb)
+        (y_pred_momentum, 'Two-Factor Momentum', final_test_mse_momentum),
+        (y_pred_node_perturb, 'Node-Perturbation', final_test_mse_node_perturb),
     ]
+
+    ncols = 3
+    nrows = math.ceil(len(models) / ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows))
+    axes = axes.flatten()
     
     for ax, (y_pred, name, mse) in zip(axes, models):
         ax.scatter(y_test_t.numpy(), y_pred.numpy(), alpha=0.3, s=10)
@@ -186,6 +195,9 @@ if __name__ == "__main__":
         ax.set_title(f'{name}\nTest MSE: {mse:.4f}')
         ax.legend()
         ax.grid(True, alpha=0.3)
+
+    for ax in axes[len(models):]:
+        ax.axis('off')
     
     plt.tight_layout()
     plt.show()

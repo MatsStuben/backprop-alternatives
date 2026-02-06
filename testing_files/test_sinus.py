@@ -1,3 +1,8 @@
+from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -49,7 +54,7 @@ if __name__ == "__main__":
             loss_node_perturb = three_factor_activation_step(model_node_perturb, X_batch, Y_batch,
                                    eta=0.2, sigma=0.1)
             loss_node_perturb_noisy = three_factor_activation_step_noisy(model_node_perturb_noisy, X_batch, Y_batch,
-                                   eta=0.7, sigma=0.2)
+                                   eta=0.2, sigma=0.1)
 
         if epoch % 20 == 0 or epoch == epochs - 1:
             with torch.no_grad():
@@ -99,4 +104,18 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+
+    model_node_perturb.plot_weight_distributions(
+        title="Node perturbation weight distributions",
+        bins=40,
+        include_bias=True,
+        show=True,
+    )
+    model_node_perturb.plot_weight_distributions(
+        title="Weight perturbation weight distributions",
+        bins=40,
+        include_bias=True,
+        show=True,
+    )
     print("Done")
