@@ -21,7 +21,9 @@ from learning_rules_MLP import (
 )
 
 
-def generate_data(n=400, noise=0.1, seed=0):
+def generate_data(n=400, noise=0.1, seed=None):
+    if seed is None:
+        seed = torch.seed()
     torch.manual_seed(seed)
     x = torch.linspace(-2 * math.pi, 2 * math.pi, n).unsqueeze(1)
     y = torch.sin(x) + noise * torch.randn_like(x)
@@ -30,9 +32,9 @@ def generate_data(n=400, noise=0.1, seed=0):
 
 if __name__ == "__main__":
     # Change this one line to switch method
-    METHOD = "wp-mult"  # options: "bp", "wp", "wp3", "wp-m", "np", "npn", "wp-mult"
+    METHOD = "npn"  # options: "bp", "wp", "wp3", "wp-m", "np", "npn", "wp-mult"
 
-    X, Y = generate_data(n=128 * 10, noise=0.1, seed=1)
+    X, Y = generate_data(n=128 * 10, noise=0.1, seed=None)
     dimensions = (1, 8, 4, 1)
 
     model = MLP(dimensions, activation=torch.sigmoid, require_grad=(METHOD == "bp"))
