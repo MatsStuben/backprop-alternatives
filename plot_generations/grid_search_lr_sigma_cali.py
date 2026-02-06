@@ -66,6 +66,12 @@ def compute_convergence_metrics(loss_history, tail_frac=0.1):
     return level, speed, var
 
 
+def sanitize_curve(curve):
+    arr = np.array(curve, dtype=float)
+    arr = np.nan_to_num(arr, nan=1.0, posinf=1.0, neginf=0.0)
+    return np.clip(arr, 0.0, 1.0)
+
+
 def run_single_trial(method, X_train, y_train, eta, sigma, epochs, batch_size, seed=None):
     if seed is None:
         seed = torch.seed()
@@ -168,12 +174,15 @@ def main():
             levels[i, j] = float(np.mean(run_levels))
             speeds[i, j] = float(np.mean(run_speeds))
             variances[i, j] = float(np.mean(run_vars))
-            curve_means[(eta, sigma)] = np.mean(np.stack(curves, axis=0), axis=0)
+            mean_curve = np.mean(np.stack(curves, axis=0), axis=0)
+            curve_means[(eta, sigma)] = sanitize_curve(mean_curve)
 
     def plot_table(values, title):
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.axis("off")
-        cell_text = [[f"{v:.4g}" for v in row] for row in values]
+        safe_vals = np.nan_to_num(values, nan=1.0, posinf=1.0, neginf=0.0)
+        safe_vals = np.clip(safe_vals, 0.0, 1.0)
+        cell_text = [[f"{v:.4g}" for v in row] for row in safe_vals]
         col_labels = [str(v) for v in SIGMA_GRID]
         row_labels = [str(v) for v in ETA_GRID]
         table = ax.table(
@@ -200,6 +209,7 @@ def main():
             curve = curve_means[(eta, sigma)]
             ax.plot(updates_axis, curve, linewidth=1.0)
             ax.set_title(f"eta={eta}, sigma={sigma}", fontsize=8)
+            ax.set_ylim(0.0, 1.0)
     fig.suptitle(f"Loss curves (mean over seeds) – {METHOD} / cali", fontsize=12)
     for ax in axes[-1, :]:
         ax.set_xlabel("Update")
