@@ -231,21 +231,22 @@ if __name__ == "__main__":
         model.load_state_dict(best_state_dict[m])
         best_models[m] = model
 
-    epochs_arr = np.arange(epochs)  # 0,1,...,epochs-1
+    epochs_arr = np.arange(epochs)
+    updates_arr = (epochs_arr + 1) * n_batches
 
     # -----------------------------
-    # Plot 1: Best training loss curve per method (loss vs epoch)
+    # Plot 1: Best training loss curve per method (loss vs update)
     # -----------------------------
     plt.figure(figsize=(8, 5))
     for m in methods:
         plt.plot(
-            epochs_arr,
+            updates_arr,
             best_train_curve[m].cpu().numpy(),
             label=f"{method_labels[m]} (best run)",
             color=method_colors[m],
         )
     plt.ylim(0.0, Y_MAX)
-    plt.xlabel("Epoch")
+    plt.xlabel("Update")
     plt.ylabel("Training MSE")
     # plt.title(...)  # removed
     plt.legend()
@@ -275,7 +276,7 @@ if __name__ == "__main__":
     plt.close()
 
     # -----------------------------
-    # Plot 2: Variance shading of training loss per method (loss vs epoch)
+    # Plot 2: Variance shading of training loss per method (loss vs update)
     # -----------------------------
 
     def plot_with_shading(x, curves, label, color):
@@ -288,13 +289,13 @@ if __name__ == "__main__":
     for m in methods:
         plt.figure(figsize=(8, 5))
         plot_with_shading(
-            epochs_arr,
+            updates_arr,
             all_train_losses[m],
             label=method_labels[m],
             color=method_colors[m],
         )
         plt.ylim(0.0, Y_MAX)
-        plt.xlabel("Epoch")
+        plt.xlabel("Update")
         plt.ylabel("Training MSE")
         # plt.title(...)  # removed
         plt.legend()
@@ -303,18 +304,18 @@ if __name__ == "__main__":
         plt.close()
 
     # -----------------------------
-    # Plot 2b: Variance shading of *test* loss per method (loss vs epoch)
+    # Plot 2b: Variance shading of *test* loss per method (loss vs update)
     # -----------------------------
     for m in methods:
         plt.figure(figsize=(8, 5))
         plot_with_shading(
-            epochs_arr,
+            updates_arr,
             all_test_losses[m],
             label=method_labels[m],
             color=method_colors[m],
         )
         plt.ylim(0.0, Y_MAX)
-        plt.xlabel("Epoch")
+        plt.xlabel("Update")
         plt.ylabel("Test MSE")
         # plt.title(...)  # removed
         plt.legend()
@@ -359,20 +360,20 @@ if __name__ == "__main__":
     plt.close()
 
     # -----------------------------
-    # Plot 4: Average training loss vs epoch
+    # Plot 4: Average training loss vs update
     # -----------------------------
     plt.figure(figsize=(8, 5))
     for m in methods:
         arr = torch.stack(all_train_losses[m], dim=0).cpu().numpy()
         mean = arr.mean(axis=0)
         plt.plot(
-            epochs_arr,
+            updates_arr,
             mean,
             label=f"{method_labels[m]} (mean)",
             color=method_colors[m],
         )
     plt.ylim(0.0, Y_MAX)
-    plt.xlabel("Epoch")
+    plt.xlabel("Update")
     plt.ylabel("Training MSE")
     # plt.title(...)  # removed
     plt.legend()

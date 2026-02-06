@@ -269,14 +269,15 @@ if __name__ == "__main__":
     # -----------------------------
     # Plot: mean test loss vs epoch (all hparams) per method
     # -----------------------------
-    x = np.arange(epochs)
+    epochs_arr = np.arange(epochs)
+    updates_arr = (epochs_arr + 1) * N_batches
     for m in methods:
         plt.figure(figsize=(10, 6))
         for r in results[m]:
-            plt.plot(x, r["mean_test"].numpy(), alpha=0.35, linewidth=1.5, label=r["hparam_str"])
-        plt.xlabel("Epoch")
+            plt.plot(updates_arr, r["mean_test"].numpy(), alpha=0.35, linewidth=1.5, label=r["hparam_str"])
+        plt.xlabel("Update")
         plt.ylabel("Test MSE")
-        plt.title(f"{labels[m]} – mean test loss vs epoch (all hyperparams)")
+        plt.title(f"{labels[m]} – mean test loss vs update (all hyperparams)")
         plt.grid(alpha=0.3)
         # too many labels -> place outside
         plt.legend(fontsize=8, ncol=2, bbox_to_anchor=(1.02, 1.0), loc="upper left")
@@ -289,7 +290,7 @@ if __name__ == "__main__":
     # -----------------------------
     for m in methods:
         plt.figure(figsize=(10, 6))
-        comp_x = (x + 1) * cost_epoch[m]
+        comp_x = (epochs_arr + 1) * cost_epoch[m]
         for r in results[m]:
             plt.plot(comp_x, r["mean_test"].numpy(), alpha=0.35, linewidth=1.5, label=r["hparam_str"])
         plt.xlabel("Compute units (forward-pass equivalents)")
@@ -311,12 +312,12 @@ if __name__ == "__main__":
 
         plt.figure(figsize=(8, 5))
         if best_fast is not None:
-            plt.plot(x, best_fast["mean_test"].numpy(), color="C0", linewidth=2.5,
+            plt.plot(updates_arr, best_fast["mean_test"].numpy(), color="C0", linewidth=2.5,
                      label=f"fastest: {best_fast['hparam_str']} (t={best_fast['t_hit']})")
-        plt.plot(x, best_low["mean_test"].numpy(), color="C1", linewidth=2.5,
+        plt.plot(updates_arr, best_low["mean_test"].numpy(), color="C1", linewidth=2.5,
                  label=f"lowest: {best_low['hparam_str']} (min={best_low['mean_test_min']:.3f})")
         plt.axhline(MSE_THRESHOLD, color="k", linestyle="--", linewidth=1, alpha=0.7, label="threshold")
-        plt.xlabel("Epoch")
+        plt.xlabel("Update")
         plt.ylabel("Test MSE")
         plt.title(f"{labels[m]} – best hyperparams")
         plt.grid(alpha=0.3)

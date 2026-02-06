@@ -236,19 +236,20 @@ if __name__ == "__main__":
         best_models[m] = model
 
     # =========================================
-    # Plot 1: best loss curves per epoch
+    # Plot 1: best loss curves per update
     # =========================================
-    x = np.arange(epochs)
+    epochs_arr = np.arange(epochs)
+    updates_arr = (epochs_arr + 1) * N_batches
 
     plt.figure(figsize=(8, 5))
     for m in methods:
         plt.plot(
-            x,
+            updates_arr,
             best_train_curve[m].cpu().numpy(),
             label=f"{labels[m]}",
             color=colors[m],
         )
-    plt.xlabel("Epoch")
+    plt.xlabel("Update")
     plt.ylabel("Training MSE")
     plt.legend()
     plt.tight_layout()
@@ -260,7 +261,7 @@ if __name__ == "__main__":
     # =========================================
     plt.figure(figsize=(8, 5))
     for m in methods:
-        comp_x = (x + 1) * cost_epoch[m]
+        comp_x = (epochs_arr + 1) * cost_epoch[m]
         plt.plot(
             comp_x,
             best_train_curve[m].cpu().numpy(),
@@ -286,8 +287,8 @@ if __name__ == "__main__":
 
     for m in methods:
         plt.figure(figsize=(8, 5))
-        shade_plot(x, all_train[m], labels[m], colors[m])
-        plt.xlabel("Epoch")
+        shade_plot(updates_arr, all_train[m], labels[m], colors[m])
+        plt.xlabel("Update")
         plt.ylabel("Training MSE")
         plt.legend()
         plt.tight_layout()
@@ -331,8 +332,8 @@ if __name__ == "__main__":
     for m in methods:
         arr = torch.stack(all_train[m], dim=0).cpu().numpy()  # (num_runs, epochs)
         mean = arr.mean(axis=0)
-        plt.plot(x, mean, label=labels[m], color=colors[m])
-    plt.xlabel("Epoch")
+        plt.plot(updates_arr, mean, label=labels[m], color=colors[m])
+    plt.xlabel("Update")
     plt.ylabel("Training MSE")
     plt.legend()
     plt.tight_layout()
@@ -343,7 +344,7 @@ if __name__ == "__main__":
     for m in methods:
         arr = torch.stack(all_train[m], dim=0).cpu().numpy()  # (num_runs, epochs)
         mean = arr.mean(axis=0)
-        comp_x = (x + 1) * cost_epoch[m]
+        comp_x = (epochs_arr + 1) * cost_epoch[m]
         plt.plot(comp_x, mean, label=labels[m], color=colors[m])
     plt.xlabel("Compute units (forward-pass equivalents)")
     plt.ylabel("Training MSE")

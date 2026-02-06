@@ -74,6 +74,9 @@ if __name__ == "__main__":
 
     epochs = 400
     batch_size = 128
+    updates_per_epoch = (X.size(0) + batch_size - 1) // batch_size
+
+    train_losses = []
 
     for epoch in range(epochs):
         perm = torch.randperm(X.size(0))
@@ -93,6 +96,12 @@ if __name__ == "__main__":
                 y_pred = model(X)
                 train_loss = F.mse_loss(y_pred, Y, reduction="mean").item()
             print(f"Epoch {epoch:4d}, {METHOD}: {train_loss:.6f}")
+        else:
+            with torch.no_grad():
+                y_pred = model(X)
+                train_loss = F.mse_loss(y_pred, Y, reduction="mean").item()
+
+        train_losses.append(train_loss)
 
     with torch.no_grad():
         xs = torch.linspace(-2 * math.pi, 2 * math.pi, 400).unsqueeze(1)
@@ -115,6 +124,16 @@ if __name__ == "__main__":
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title(f"Prediction vs True (MSE={test_mse:.4f})")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    
+    updates_plot = [(i + 1) * updates_per_epoch for i in range(epochs)]
+    plt.figure(figsize=(8, 4))
+    plt.plot(updates_plot, train_losses, label=f"{METHOD} Train", color="C0")
+    plt.xlabel("Update")
+    plt.ylabel("Train MSE")
+    plt.title("Training loss vs update")
     plt.legend()
     plt.tight_layout()
     plt.show()

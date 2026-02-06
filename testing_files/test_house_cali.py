@@ -52,6 +52,7 @@ if __name__ == "__main__":
     
     epochs = 100
     batch_size = 256
+    updates_per_epoch = math.ceil(X_train_t.size(0) / batch_size)
     
     train_losses_3f = []
     train_losses_2f = []
@@ -145,25 +146,25 @@ if __name__ == "__main__":
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     
-    epochs_plot = list(range(epochs))
+    updates_plot = [(i + 1) * updates_per_epoch for i in range(epochs)]
     
-    ax1.plot(epochs_plot, train_losses_3f, label='Three-Factor', marker='o')
-    ax1.plot(epochs_plot, train_losses_2f, label='Two-Factor', marker='s')
-    ax1.plot(epochs_plot, train_losses_bp, label='Backprop SGD', marker='^')
-    ax1.plot(epochs_plot, train_losses_2f_momentum, label='Two-Factor Momentum', marker='v')
-    ax1.plot(epochs_plot, train_losses_node_perturb, label='Node-Perturbation', marker='x')
-    ax1.set_xlabel('Epoch')
+    ax1.plot(updates_plot, train_losses_3f, label='Three-Factor', marker='o')
+    ax1.plot(updates_plot, train_losses_2f, label='Two-Factor', marker='s')
+    ax1.plot(updates_plot, train_losses_bp, label='Backprop SGD', marker='^')
+    ax1.plot(updates_plot, train_losses_2f_momentum, label='Two-Factor Momentum', marker='v')
+    ax1.plot(updates_plot, train_losses_node_perturb, label='Node-Perturbation', marker='x')
+    ax1.set_xlabel('Update')
     ax1.set_ylabel('Train MSE')
     ax1.set_title('Training Loss')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     
-    ax2.plot(epochs_plot, test_losses_3f, label='Three-Factor', marker='o')
-    ax2.plot(epochs_plot, test_losses_2f, label='Two-Factor', marker='s')
-    ax2.plot(epochs_plot, test_losses_bp, label='Backprop SGD', marker='^')
-    ax2.plot(epochs_plot, test_losses_2f_momentum, label='Two-Factor Momentum', marker='v')
-    ax2.plot(epochs_plot, test_losses_node_perturb, label='Node-Perturbation', marker='x')
-    ax2.set_xlabel('Epoch')
+    ax2.plot(updates_plot, test_losses_3f, label='Three-Factor', marker='o')
+    ax2.plot(updates_plot, test_losses_2f, label='Two-Factor', marker='s')
+    ax2.plot(updates_plot, test_losses_bp, label='Backprop SGD', marker='^')
+    ax2.plot(updates_plot, test_losses_2f_momentum, label='Two-Factor Momentum', marker='v')
+    ax2.plot(updates_plot, test_losses_node_perturb, label='Node-Perturbation', marker='x')
+    ax2.set_xlabel('Update')
     ax2.set_ylabel('Test MSE')
     ax2.set_title('Test Loss')
     ax2.legend()

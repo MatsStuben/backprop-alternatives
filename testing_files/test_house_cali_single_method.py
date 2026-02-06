@@ -25,7 +25,7 @@ from learning_rules_MLP import (
 
 if __name__ == "__main__":
     # Change this one line to switch method
-    METHOD = "wp-mult"  # options: "bp", "wp", "wp3", "wp-m", "np", "npn", "wp-mult"
+    METHOD = "npn"  # options: "bp", "wp", "wp3", "wp-m", "np", "npn", "wp-mult"
 
     print("Loading California Housing dataset...")
     housing = fetch_california_housing()
@@ -91,6 +91,7 @@ if __name__ == "__main__":
 
     epochs = 100
     batch_size = 256
+    updates_per_epoch = (X_train_t.size(0) + batch_size - 1) // batch_size
 
     train_losses = []
     test_losses = []
@@ -134,18 +135,18 @@ if __name__ == "__main__":
             f"Layer {i} weights finite={torch.isfinite(w).all().item()} max|w|={w.abs().max().item():.4e}"
         )
 
-    epochs_plot = list(range(epochs))
+    updates_plot = [(i + 1) * updates_per_epoch for i in range(epochs)]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-    ax1.plot(epochs_plot, train_losses, label=f"{METHOD} Train", marker="o")
-    ax1.set_xlabel("Epoch")
+    ax1.plot(updates_plot, train_losses, label=f"{METHOD} Train", marker="o")
+    ax1.set_xlabel("Update")
     ax1.set_ylabel("Train MSE")
     ax1.set_title("Training Loss")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
-    ax2.plot(epochs_plot, test_losses, label=f"{METHOD} Test", marker="s")
-    ax2.set_xlabel("Epoch")
+    ax2.plot(updates_plot, test_losses, label=f"{METHOD} Test", marker="s")
+    ax2.set_xlabel("Update")
     ax2.set_ylabel("Test MSE")
     ax2.set_title("Test Loss")
     ax2.legend()
