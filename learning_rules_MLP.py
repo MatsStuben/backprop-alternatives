@@ -111,33 +111,10 @@ class MLP(nn.Module):
             noises.append((eps_w, eps_b))
         return ys, xs, noises
 
-    def forward_activation_perturb(self, x, sigma):
-        acts = [x]
-        noises = []
-        last = len(self.layers) - 1
-        a_noisy = x
-
-        for i, layer in enumerate(self.layers):
-            z_clean = layer(acts[-1])
-            if i == last:
-                a_clean = self.output_activation(z_clean) if self.output_activation else z_clean
-            else:
-                a_clean = self.activation(z_clean)
-            acts.append(a_clean)
-
-            z_noisy = layer(a_noisy)
-            eps = torch.randn_like(z_noisy, device=z_noisy.device, dtype=z_noisy.dtype)
-            noises.append(eps)
-            z_noisy = z_noisy + sigma * eps
-
-            if i == last:
-                a_noisy = self.output_activation(z_noisy) if self.output_activation else z_noisy
-            else:
-                a_noisy = self.activation(z_noisy)
-
-        return acts, noises, a_noisy
-
-    def forward_activation_perturb_noisy(self, x, sigma):
+    def forward_node_perturb(self, x, sigma):
+        """
+        Forward pass for node perturbation: add noise to each layer pre-activation.
+        """
         acts = [x]
         noises = []
         last = len(self.layers) - 1
@@ -156,282 +133,65 @@ class MLP(nn.Module):
 
         return acts, noises, a_noisy
 
-def init_signed_lognormal_weights(
-    model: MLP,
-    log_mu: float = 0.0,
-    log_sigma: float = 1.0,
-    p_inhib: float = 0.0,
-    by_neuron: bool = False,
-) -> None:
+def _mean_loss_per_sample(prediction, target):
+    loss = F.mse_loss(prediction, target, reduction='none')
+    if loss.dim() > 1:
+        loss = loss.mean(dim=1)
+    return loss.view(-1)
+
+
+def _centered_reward_signal(loss_per_sample):
+    reward = -loss_per_sample
+    reward_bar = reward.mean()
+    return reward - reward_bar
+
+
+def node_perturbation_step(model, X, target, eta=0.5, sigma=0.1):
     """
-    Initialize weights so |w| ~ LogNormal(log_mu, log_sigma), with signs handled
-    separately (mirrored log-normal). If p_inhib > 0 and by_neuron=True, enforce
-    a Dale-like constraint by making a fraction p_inhib of presynaptic columns
-    inhibitory (all negative). This only changes initialization; training rules
-    like `weight_perturb_step` work unchanged.
-    """
-    if not 0.0 <= p_inhib <= 1.0:
-        raise ValueError("p_inhib must be in [0, 1].")
-
-    for layer in model.layers:
-        if not isinstance(layer, nn.Linear):
-            continue
-
-        with torch.no_grad():
-            w = layer.weight
-            mag = torch.exp(torch.randn_like(w) * log_sigma + log_mu)
-
-            if p_inhib == 0.0:
-                sign = (torch.randint(0, 2, w.shape, device=w.device, dtype=w.dtype) * 2) - 1
-            elif by_neuron:
-                inhib = torch.rand(w.shape[1], device=w.device) < p_inhib
-                sign = torch.where(inhib, -1.0, 1.0).to(dtype=w.dtype).unsqueeze(0).expand_as(w)
-            else:
-                inhib = torch.rand_like(w) < p_inhib
-                sign = torch.where(inhib, -1.0, 1.0).to(dtype=w.dtype)
-
-            layer.weight.copy_(sign * mag)
-            if layer.bias is not None:
-                layer.bias.zero_()
-
-            if "sign_mask" in layer._buffers:
-                layer._buffers["sign_mask"] = sign
-            else:
-                layer.register_buffer("sign_mask", sign)
-
-def three_factor_weight_step(model, X, target, eta=0.5, sigma=0.1):
-
-    model.train()
-    ys, xs, noises = model.forward_weight_perturb(X, sigma)
-    y_out = ys[-1]
-    loss_vec = F.mse_loss(y_out, target, reduction='none')
-
-    if loss_vec.dim() > 1:
-        loss_vec = loss_vec.mean(dim=1)
-    loss_vec = loss_vec.view(-1)
-
-    with torch.no_grad():
-        reward = -loss_vec.squeeze()   
-        reward_bar = reward.mean()
-        norm_reward = (reward - reward_bar)
-        
-        h_in = xs   
-        h_out = ys
-        
-        for layer_idx, (layer, (eps_w, eps_b), x_in, x_out) in enumerate(zip(model.layers, noises, h_in, h_out)):
-
-            num_layers = len(model.layers)
-            if layer_idx == 0 or layer_idx == num_layers - 1:
-                eligibility_w = torch.ones_like(torch.bmm(x_in.unsqueeze(2), x_out.unsqueeze(1)).transpose(1, 2))
-            else:
-                eligibility_w = torch.bmm(x_in.unsqueeze(2), x_out.unsqueeze(1)).transpose(1, 2)
-
-            dW = ((eps_w* eligibility_w * norm_reward.view(-1, 1, 1)).mean(dim=0) / (sigma + 1e-12)) * eta
-            
-            new_weights = layer.weight + dW
-            layer.weight.copy_(new_weights)
-
-            eligibility_b = torch.ones_like(x_out)
-            db = ((eps_b * eligibility_b * norm_reward.unsqueeze(1)).mean(dim=0) / (sigma + 1e-12)) * eta
-            
-            new_bias = layer.bias + db
-            layer.bias.copy_(new_bias)
-
-    return loss_vec.mean().item()
-
-def three_factor_activation_step(model, X, target, eta=0.5, sigma=0.1):
-    """
-    Three-factor node-perturbation update:
-    grad ≈ (reward - baseline) * (eps / sigma) * activation_derivative * pre-activity
+    Node perturbation with a centered reward signal from the noisy forward pass.
     """
     model.train()
-    last = len(model.layers) - 1
-
-    acts, noises, y_noisy = model.forward_activation_perturb(X, sigma)
-    clean_output = acts[-1]
-
-    loss_noisy = F.mse_loss(y_noisy, target, reduction='none')
-    if loss_noisy.dim() > 1:
-        loss_noisy = loss_noisy.mean(dim=1)
-    loss_vec = loss_noisy.view(-1)
+    activations, noises, prediction_noisy = model.forward_node_perturb(X, sigma)
+    loss_per_sample = _mean_loss_per_sample(prediction_noisy, target)
+    scalar_signal = _centered_reward_signal(loss_per_sample)
+    sigma_safe = sigma + 1e-12
 
     with torch.no_grad():
-        reward = -loss_vec
-        baseline = reward.mean()
-        advantage = reward - baseline  # (B,)
+        for layer, x_in, noise in zip(model.layers, activations, noises):
+            scaled_noise = scalar_signal.view(-1, 1) * noise / sigma_safe
+            weight_update = eta * torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
+            bias_update = eta * scaled_noise.mean(dim=0)
 
-        for i, layer in enumerate(model.layers):
-            x_in = acts[i]        # layer input
-            act = acts[i+1]       # layer clean output
-            eps = noises[i]
+            layer.weight += weight_update
+            layer.bias += bias_update
 
-            act_deriv = _activation_derivative(
-                act,
-                model.output_activation if i == last else model.activation
-            )
+    return loss_per_sample.mean().item()
 
-            delta = advantage.view(-1, 1) * eps / (sigma + 1e-12)
-            delta *= act_deriv
-
-            dW = torch.bmm(delta.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
-            db = delta.mean(dim=0)
-
-            layer.weight += eta * dW
-            layer.bias += eta * db
-
-    return F.mse_loss(clean_output, target, reduction='mean').item()
-
-def three_factor_activation_step_noisy(model, X, target, eta=0.5, sigma=0.1):
-    model.train()
-    last = len(model.layers) - 1
-
-    acts, noises, y_noisy = model.forward_activation_perturb_noisy(X, sigma)
-
-    loss_noisy = F.mse_loss(y_noisy, target, reduction='none')
-    if loss_noisy.dim() > 1:
-        loss_noisy = loss_noisy.mean(dim=1)
-    loss_vec = loss_noisy.view(-1)
-
-    with torch.no_grad():
-        reward = -loss_vec
-        baseline = reward.mean()
-        advantage = reward - baseline
-
-        for i, layer in enumerate(model.layers):
-            x_in = acts[i]
-            act = acts[i+1]
-            eps = noises[i]
-
-            act_deriv = _activation_derivative(
-                act,
-                model.output_activation if i == last else model.activation
-            )
-
-            delta = advantage.view(-1, 1) * eps / (sigma + 1e-12)
-            delta *= act_deriv
-
-            dW = torch.bmm(delta.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
-            db = delta.mean(dim=0)
-
-            layer.weight += eta * dW
-            layer.bias += eta * db
-
-    return loss_vec.mean().item()
 
 def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1):
-
-    model.train()
-    ys, xs, noises = model.forward_weight_perturb(X, sigma)
-    y_out = ys[-1]
-    loss_vec = F.mse_loss(y_out, target, reduction='none')
-
-    if loss_vec.dim() > 1:
-        loss_vec = loss_vec.mean(dim=1)
-    loss_vec = loss_vec.view(-1)
-
-    with torch.no_grad():
-        reward = -loss_vec.squeeze()   
-        reward_bar = reward.mean()
-        norm_reward = (reward - reward_bar)
-
-        for layer_idx, (layer, (eps_w, eps_b), x_in, x_out) in enumerate(zip(model.layers, noises, xs, ys)):
-
-            dW = ((eps_w * norm_reward.view(-1, 1, 1)).mean(dim=0) / (sigma + 1e-12)) * eta
-            
-            new_weights = layer.weight + dW
-            layer.weight.copy_(new_weights)
-
-            db = ((eps_b  * norm_reward.unsqueeze(1)).mean(dim=0) / (sigma + 1e-12)) * eta
-            
-            new_bias = layer.bias + db
-            layer.bias.copy_(new_bias)
-
-    return loss_vec.mean().item()
-
-def weight_perturb_step_multiplicative(
-    model,
-    X,
-    target,
-    eta: float = 0.5,
-    sigma: float = 0.1,
-    max_mult_step: float = 0.1,
-):
     """
-    REINFORCE-style estimator like `weight_perturb_step`, but with multiplicative
-    weight updates (w <- w * mult). If `sign_mask` exists, it enforces Dale's
-    principle by restoring the original sign pattern; biases stay additive.
+    Weight perturbation with a centered reward signal from the noisy forward pass.
     """
-
     model.train()
-    ys, xs, noises = model.forward_weight_perturb(X, sigma)
-    y_out = ys[-1]
-    loss_vec = F.mse_loss(y_out, target, reduction='none')
-
-    if loss_vec.dim() > 1:
-        loss_vec = loss_vec.mean(dim=1)
-    loss_vec = loss_vec.view(-1)
+    layer_outputs, _, noises = model.forward_weight_perturb(X, sigma)
+    prediction_noisy = layer_outputs[-1]
+    loss_per_sample = _mean_loss_per_sample(prediction_noisy, target)
+    scalar_signal = _centered_reward_signal(loss_per_sample)
+    sigma_safe = sigma + 1e-12
 
     with torch.no_grad():
-        reward = -loss_vec
-        norm_reward = reward - reward.mean()
+        for layer, (weight_noise, bias_noise) in zip(model.layers, noises):
+            weight_update = eta * (weight_noise * scalar_signal.view(-1, 1, 1)).mean(dim=0) / sigma_safe
+            bias_update = eta * (bias_noise * scalar_signal.view(-1, 1)).mean(dim=0) / sigma_safe
 
-        for layer, (eps_w, eps_b) in zip(model.layers, noises):
+            layer.weight += weight_update
+            layer.bias += bias_update
 
-            dW = (eps_w * norm_reward.view(-1, 1, 1)).mean(dim=0) / (sigma + 1e-12)
-            db = (eps_b * norm_reward.unsqueeze(1)).mean(dim=0) / (sigma + 1e-12)
-
-            mult = 1.0 + eta * dW
-            mult = torch.clamp(mult, 1.0 - max_mult_step, 1.0 + max_mult_step)
-            new_weights = layer.weight * mult
-            if hasattr(layer, "sign_mask"):
-                new_weights = layer.sign_mask * new_weights.abs()
-            layer.weight.copy_(new_weights)
-
-            new_bias = layer.bias + eta * db
-            layer.bias.copy_(new_bias)
-
-    return loss_vec.mean().item()
-
-def weight_perturb_step_momentum(model, X, target, momentum_w, momentum_b, eta=0.5, sigma=0.1):
-
-    model.train()
-    ys, xs, noises = model.forward_weight_perturb(X, sigma)
-    y_out = ys[-1]
-    loss_vec = F.mse_loss(y_out, target, reduction='none')
-
-    if loss_vec.dim() > 1:
-        loss_vec = loss_vec.mean(dim=1)
-    loss_vec = loss_vec.view(-1)
-
-    with torch.no_grad():
-        reward = -loss_vec.squeeze()   
-        reward_bar = reward.mean()
-        norm_reward = (reward - reward_bar)
-
-        for layer_idx, (layer, (eps_w, eps_b), x_in, x_out) in enumerate(zip(model.layers, noises, xs, ys)):
-            momentum_w_l = momentum_w[layer_idx]
-            momentum_b_l = momentum_b[layer_idx]
-
-            dW = ((eps_w * norm_reward.view(-1, 1, 1)).mean(dim=0) / (sigma + 1e-12)) * eta
-
-            momentum_w_l = 0.9 * momentum_w_l + dW
-            new_weights = layer.weight + momentum_w_l
-            layer.weight.copy_(new_weights)
+    return loss_per_sample.mean().item()
 
 
-            db = ((eps_b  * norm_reward.unsqueeze(1)).mean(dim=0) / (sigma + 1e-12)) * eta
-
-            momentum_b_l = 0.9 * momentum_b_l + db
-            new_bias = layer.bias + momentum_b_l
-            layer.bias.copy_(new_bias)
-
-            momentum_w[layer_idx] = momentum_w_l
-            momentum_b[layer_idx] = momentum_b_l
-
-    return loss_vec.mean().item(), momentum_w, momentum_b
 
 def backprop_step(model, X, target, optimizer, loss_fn=F.mse_loss):
-
     model.train()
     for p in model.parameters():
         p.requires_grad_(True)
@@ -444,17 +204,5 @@ def backprop_step(model, X, target, optimizer, loss_fn=F.mse_loss):
 
     return loss.item()
 
-def _activation_derivative(act, activation):
-    """
-    Returns φ'(z) expressed via the activation output `act`.
-    Supports None, sigmoid, tanh, relu, and defaults to 1.
-    """
-    if activation is None:
-        return torch.ones_like(act)
-    if activation is torch.sigmoid:
-        return act * (1 - act)
-    if activation is torch.tanh:
-        return 1 - act.pow(2)
-    if activation is torch.relu:
-        return (act > 0).float()
-    return torch.ones_like(act)
+
+
