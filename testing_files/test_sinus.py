@@ -3,119 +3,287 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import math
+import torch
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
-from learning_rules_MLP import MLP, three_factor_weight_step, weight_perturb_step, backprop_step, weight_perturb_step_momentum, three_factor_activation_step, three_factor_activation_step_noisy
-
-def generate_data(n=400, noise=0.1, seed=0):
-    x = torch.linspace(-2*math.pi, 2*math.pi, n).unsqueeze(1)
-    y = torch.sin(x) + noise * torch.randn_like(x)
-    return x, y
+from learning_rules_MLP import MLP, backprop_step, node_perturbation_step, weight_perturb_step
 
 
+METHODS = ["bp", "np", "wp"]
+PERTURBATION_SIGMA = 0.1
+METHOD_CONFIG = {
+    "bp": {"label": "Backprop", "color": "C0", "lr": 0.05, "requires_grad": True},
+    "np": {"label": "Node Perturbation", "color": "C1", "lr": 0.1, "requires_grad": False},
+    "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.1, "requires_grad": False},
+}
 
-if __name__ == "__main__":
-    X, Y = generate_data(n=128*10, noise=0.1, seed=1)
-    dimensions = (1, 8, 4, 1)
-    model_three_factor = MLP(dimensions, activation=torch.sigmoid)
-    model_two_factor = MLP(dimensions, activation=torch.sigmoid)
-    model_backprop = MLP(dimensions, activation=torch.sigmoid, require_grad=True)
-    model_two_factor_momentum = MLP(dimensions, activation=torch.sigmoid)
-    model_node_perturb = MLP(dimensions, activation=torch.sigmoid)
-    model_node_perturb_noisy = MLP(dimensions, activation=torch.sigmoid)
-    momentum_w = [torch.zeros_like(layer.weight) for layer in model_two_factor_momentum.layers]
-    momentum_b = [torch.zeros_like(layer.bias) for layer in model_two_factor_momentum.layers]
+SEED = 0
+TRAIN_SAMPLES = 512
+TEST_SAMPLES = 512
+TRAIN_NOISE_STD = 0.1
+DIMENSIONS = (1, 32, 16, 1)
+BATCH_SIZE = 64
+EPOCHS = 1000
+METRIC_EVERY = 1
+PRINT_EVERY = 20
 
-    optimizer_bp = torch.optim.SGD(model_backprop.parameters(), lr=0.1)
-    epochs = 400
-    batch_size = 128
-    for epoch in range(epochs):
-        perm = torch.randperm(X.size(0))
-        for start in range(0, X.size(0), batch_size):
-            end = min(start + batch_size, X.size(0))
-            idx = perm[start:end]
-            X_batch = X[idx]
-            Y_batch = Y[idx]
 
-            loss_backprop = backprop_step(model_backprop, X_batch, Y_batch, optimizer=optimizer_bp)
-            loss_two_factor = weight_perturb_step(model_two_factor, X_batch, Y_batch,
-                                   eta=0.7, sigma=0.2)
-            loss_three_factor = three_factor_weight_step(model_three_factor, X_batch, Y_batch, 
-                            eta=0.9, sigma=0.1)
-            loss_momentum, momentum_w, momentum_b = weight_perturb_step_momentum(
-                model_two_factor_momentum, X_batch, Y_batch,
-                momentum_w, momentum_b, eta=0.03, sigma=0.1
-            )
+def generate_sinus_data(n_train, n_test, noise_std, seed):
+    generator = torch.Generator().manual_seed(seed)
+    x_train = (torch.rand(n_train, 1, generator=generator) * 4.0 - 2.0) * math.pi
+    y_train = torch.sin(x_train) + noise_std * torch.randn_like(x_train, generator=generator)
 
-            loss_node_perturb = three_factor_activation_step(model_node_perturb, X_batch, Y_batch,
-                                   eta=0.2, sigma=0.1)
-            loss_node_perturb_noisy = three_factor_activation_step_noisy(model_node_perturb_noisy, X_batch, Y_batch,
-                                   eta=0.2, sigma=0.1)
+    x_test = torch.linspace(-2 * math.pi, 2 * math.pi, n_test).unsqueeze(1)
+    y_test = torch.sin(x_test)
+    return x_train, y_train, x_test, y_test
 
-        if epoch % 20 == 0 or epoch == epochs - 1:
-            with torch.no_grad():
-                y_pred_three_factor = model_three_factor(X)
-                y_pred_two_factor = model_two_factor(X)
-                y_pred_backprop = model_backprop(X)
-                y_pred_momentum = model_two_factor_momentum(X)
-                y_pred_node_perturb = model_node_perturb(X)
-                y_pred_node_perturb_noisy = model_node_perturb_noisy(X)
-                train_loss_three_factor = F.mse_loss(y_pred_three_factor, Y, reduction='mean').item()
-                train_loss_two_factor = F.mse_loss(y_pred_two_factor, Y, reduction='mean').item()
-                train_loss_backprop = F.mse_loss(y_pred_backprop, Y, reduction='mean').item()
-                train_loss_momentum = F.mse_loss(y_pred_momentum, Y, reduction='mean').item()
-                train_loss_node_perturb = F.mse_loss(y_pred_node_perturb, Y, reduction='mean').item()
-                train_loss_node_perturb_noisy = F.mse_loss(y_pred_node_perturb_noisy, Y, reduction='mean').item()
-            print(f"Epoch {epoch:4d}, 3F: {train_loss_three_factor:.6f}, 2F: {train_loss_two_factor:.6f}, BP: {train_loss_backprop:.6f}, 2F-M: {train_loss_momentum:.6f}, NP: {train_loss_node_perturb:.6f}, NP-N: {train_loss_node_perturb_noisy:.6f}")
+
+def flatten_tensors(tensors):
+    return torch.cat([tensor.reshape(-1) for tensor in tensors])
+
+
+def flatten_model_tensors(weight_tensors, bias_tensors):
+    pieces = []
+    for weight_tensor, bias_tensor in zip(weight_tensors, bias_tensors):
+        pieces.append(weight_tensor.reshape(-1))
+        pieces.append(bias_tensor.reshape(-1))
+    return torch.cat(pieces)
+
+
+def mse_per_sample(prediction, target):
+    loss = F.mse_loss(prediction, target, reduction="none")
+    if loss.dim() > 1:
+        loss = loss.mean(dim=1)
+    return loss.view(-1)
+
+
+def centered_reward_signal(loss_per_sample):
+    reward = -loss_per_sample
+    return reward - reward.mean()
+
+
+def true_gradient(model, xb, yb):
+    requires_grad_state = [parameter.requires_grad for parameter in model.parameters()]
+    for parameter in model.parameters():
+        parameter.requires_grad_(True)
+
+    model.zero_grad(set_to_none=True)
+    prediction = model(xb)
+    loss = F.mse_loss(prediction, yb, reduction="mean")
+    loss.backward()
+
+    weight_grads = [layer.weight.grad.detach().clone() for layer in model.layers]
+    bias_grads = [layer.bias.grad.detach().clone() for layer in model.layers]
+    flat_grad = flatten_model_tensors(weight_grads, bias_grads)
+
+    model.zero_grad(set_to_none=True)
+    for parameter, old_value in zip(model.parameters(), requires_grad_state):
+        parameter.requires_grad_(old_value)
+
+    return weight_grads, bias_grads, flat_grad
+
+
+def node_perturbation_gradient_estimate(model, xb, yb, sigma):
+    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb(xb, sigma)
+    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
+
+    weight_grads = []
+    bias_grads = []
+    for x_in, noise, noise_scale in zip(activations, noises, noise_scales):
+        scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
+        weight_grads.append(torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0))
+        bias_grads.append(scaled_noise.mean(dim=0))
+
+    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
+
+
+def weight_perturbation_gradient_estimate(model, xb, yb, sigma):
+    layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
+    prediction_noisy = layer_outputs[-1]
+    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
+    sigma_safe = sigma + 1e-12
+
+    weight_grads = []
+    bias_grads = []
+    for weight_noise, bias_noise in noises:
+        weight_grads.append((weight_noise * scalar_signal.view(-1, 1, 1)).mean(dim=0) / sigma_safe)
+        bias_grads.append((bias_noise * scalar_signal.view(-1, 1)).mean(dim=0) / sigma_safe)
+
+    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
+
+
+def cosine_similarity_safe(a, b, eps=1e-12):
+    a_norm = torch.norm(a)
+    b_norm = torch.norm(b)
+    if a_norm.item() < eps or b_norm.item() < eps:
+        return 0.0
+    return float(torch.dot(a, b) / (a_norm * b_norm + eps))
+
+
+def gradient_metrics(model, method, xb, yb):
+    _, _, true_grad = true_gradient(model, xb, yb)
+    true_update = -true_grad
+    if method == "bp":
+        estimator_update = true_update
+    elif method == "np":
+        _, _, estimator_update = node_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
+    elif method == "wp":
+        _, _, estimator_update = weight_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
+    diff = estimator_update - true_update
+    cosine = cosine_similarity_safe(estimator_update, true_update)
+    variance_estimate = float(diff.pow(2).mean())
+    return cosine, variance_estimate
+
+
+def evaluate_loss(model, x, y):
+    model.eval()
     with torch.no_grad():
-        xs = torch.linspace(-2*math.pi, 2*math.pi, 400).unsqueeze(1)
-        ys_three_factor = model_three_factor(xs)
-        ys_two_factor = model_two_factor(xs)
-        ys_backprop = model_backprop(xs)
-        ys_momentum = model_two_factor_momentum(xs)
-        ys_node_perturb = model_node_perturb(xs)
-        ys_node_perturb_noisy = model_node_perturb_noisy(xs)
-        y_true = torch.sin(xs)
+        prediction = model(x)
+        return float(F.mse_loss(prediction, y, reduction="mean"))
 
-    test_mse_three_factor = F.mse_loss(ys_three_factor, y_true, reduction='mean').item()
-    test_mse_two_factor = F.mse_loss(ys_two_factor, y_true, reduction='mean').item()
-    test_mse_backprop = F.mse_loss(ys_backprop, y_true, reduction='mean').item()
-    test_mse_momentum = F.mse_loss(ys_momentum, y_true, reduction='mean').item()
-    test_mse_node_perturb = F.mse_loss(ys_node_perturb, y_true, reduction='mean').item()
-    test_mse_node_perturb_noisy = F.mse_loss(ys_node_perturb_noisy, y_true, reduction='mean').item()
-    print(f"Test MSE on grid: {test_mse_three_factor:.6f}, {test_mse_two_factor:.6f}, {test_mse_backprop:.6f}, {test_mse_momentum:.6f}, {test_mse_node_perturb:.6f}, {test_mse_node_perturb_noisy:.6f}")
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(xs.cpu().numpy(), y_true.cpu().numpy(), label='True sin(x)', color='C0')
-    plt.plot(xs.cpu().numpy(), ys_three_factor.cpu().numpy(), label='Three-Factor Model prediction', color='C1')
-    plt.plot(xs.cpu().numpy(), ys_two_factor.cpu().numpy(), label='Two-Factor Model prediction', color='C2')
-    plt.plot(xs.cpu().numpy(), ys_backprop.cpu().numpy(), label='Backprop Model prediction', color='C3')
-    plt.plot(xs.cpu().numpy(), ys_momentum.cpu().numpy(), label='Two-Factor Momentum Model prediction', color='C5')
-    plt.plot(xs.cpu().numpy(), ys_node_perturb.cpu().numpy(), label='Node-Perturbation Model prediction', color='C6')
-    plt.plot(xs.cpu().numpy(), ys_node_perturb_noisy.cpu().numpy(), label='Node-Perturbation Noisy prediction', color='C7')
-    plt.scatter(X.cpu().numpy(), Y.cpu().numpy(), s=10, alpha=0.3, label='Train samples', color='C4')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.title(f'Prediction vs True (MSE={test_mse_three_factor:.4f}, {test_mse_two_factor:.4f}, {test_mse_backprop:.4f}, {test_mse_momentum:.4f}, {test_mse_node_perturb:.4f}, {test_mse_node_perturb_noisy:.4f})')
+def make_model_copies():
+    torch.manual_seed(SEED)
+    base_model = MLP(DIMENSIONS, activation=torch.sigmoid, require_grad=True)
+    base_state = {name: tensor.detach().clone() for name, tensor in base_model.state_dict().items()}
+
+    models = {}
+    optimizers = {}
+    for method in METHODS:
+        config = METHOD_CONFIG[method]
+        model = MLP(DIMENSIONS, activation=torch.sigmoid, require_grad=config["requires_grad"])
+        model.load_state_dict(base_state)
+        models[method] = model
+        if method == "bp":
+            optimizers[method] = torch.optim.SGD(model.parameters(), lr=config["lr"])
+
+    return models, optimizers
+
+
+def step_method(method, model, optimizer, xb, yb):
+    config = METHOD_CONFIG[method]
+    if method == "bp":
+        return backprop_step(model, xb, yb, optimizer=optimizer)
+    if method == "np":
+        return node_perturbation_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
+    if method == "wp":
+        return weight_perturb_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
+    raise ValueError(f"Unknown method: {method}")
+
+
+def plot_average_gradient_metrics(cosine_history, variance_history):
+    methods_to_compare = [method for method in METHODS if method in {"np", "wp"}]
+    labels = [METHOD_CONFIG[method]["label"] for method in methods_to_compare]
+    colors = [METHOD_CONFIG[method]["color"] for method in methods_to_compare]
+    mean_cosines = [sum(cosine_history[method]) / max(len(cosine_history[method]), 1) for method in methods_to_compare]
+    mean_variances = [sum(variance_history[method]) / max(len(variance_history[method]), 1) for method in methods_to_compare]
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    axes[0].bar(labels, mean_cosines, color=colors)
+    axes[0].set_title("Average Cosine Similarity")
+    axes[0].set_ylabel("Cosine")
+
+    axes[1].bar(labels, mean_variances, color=colors)
+    axes[1].set_title("Average Gradient Variance")
+    axes[1].set_ylabel("Mean squared error")
+
+    fig.tight_layout()
+
+
+def main():
+    x_train, y_train, x_test, y_test = generate_sinus_data(
+        n_train=TRAIN_SAMPLES,
+        n_test=TEST_SAMPLES,
+        noise_std=TRAIN_NOISE_STD,
+        seed=SEED,
+    )
+    models, optimizers = make_model_copies()
+
+    iterations = []
+    train_loss_history = {method: [] for method in METHODS}
+    test_loss_history = {method: [] for method in METHODS}
+    cosine_history = {method: [] for method in METHODS}
+    variance_history = {method: [] for method in METHODS}
+
+    iteration = 0
+    batches_per_epoch = (x_train.size(0) + BATCH_SIZE - 1) // BATCH_SIZE
+
+    for epoch in range(EPOCHS):
+        permutation = torch.randperm(x_train.size(0))
+        for batch_start in range(0, x_train.size(0), BATCH_SIZE):
+            batch_end = min(batch_start + BATCH_SIZE, x_train.size(0))
+            batch_indices = permutation[batch_start:batch_end]
+            xb = x_train[batch_indices]
+            yb = y_train[batch_indices]
+            iteration += 1
+
+            for method in METHODS:
+                model = models[method]
+                cosine, variance_estimate = gradient_metrics(model, method, xb, yb)
+                step_method(method, model, optimizers.get(method), xb, yb)
+
+                if iteration % METRIC_EVERY == 0:
+                    train_loss_history[method].append(evaluate_loss(model, x_train, y_train))
+                    test_loss_history[method].append(evaluate_loss(model, x_test, y_test))
+                    cosine_history[method].append(cosine)
+                    variance_history[method].append(variance_estimate)
+
+            if iteration % METRIC_EVERY == 0:
+                iterations.append(iteration)
+
+        if (epoch + 1) % PRINT_EVERY == 0 or epoch == 0 or epoch + 1 == EPOCHS:
+            status_parts = []
+            for method in METHODS:
+                status_parts.append(
+                    f"{method}: train={train_loss_history[method][-1]:.4f}, "
+                    f"test={test_loss_history[method][-1]:.4f}, "
+                    f"cos={cosine_history[method][-1]:.4f}, "
+                    f"var={variance_history[method][-1]:.4e}"
+                )
+            print(f"Epoch {epoch + 1:4d}/{EPOCHS} | " + " | ".join(status_parts))
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    for method in METHODS:
+        config = METHOD_CONFIG[method]
+        axes[0].plot(iterations, train_loss_history[method], label=f"{config['label']} train", color=config["color"])
+        axes[0].plot(iterations, test_loss_history[method], linestyle="--", label=f"{config['label']} test", color=config["color"])
+        axes[1].plot(iterations, cosine_history[method], label=config["label"], color=config["color"])
+        axes[2].plot(iterations, variance_history[method], label=config["label"], color=config["color"])
+
+    axes[0].set_title("Sinus Regression Loss")
+    axes[0].set_ylabel("MSE")
+    axes[0].legend()
+    axes[1].set_title("Cosine Similarity to True Gradient")
+    axes[1].set_ylabel("Cosine")
+    axes[1].legend()
+    axes[2].set_title("Estimated Mean Gradient Variance")
+    axes[2].set_xlabel("Iteration")
+    axes[2].set_ylabel("Mean squared error")
+    axes[2].legend()
+    fig.tight_layout()
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(x_test.squeeze().numpy(), y_test.squeeze().numpy(), color="black", linewidth=2, label="True signal")
+    plt.scatter(x_train.squeeze().numpy(), y_train.squeeze().numpy(), color="0.8", s=10, alpha=0.5, label="Train samples")
+    for method in METHODS:
+        config = METHOD_CONFIG[method]
+        with torch.no_grad():
+            prediction = models[method](x_test)
+        plt.plot(x_test.squeeze().numpy(), prediction.squeeze().numpy(), color=config["color"], label=config["label"])
+
+    plt.title("Sinus Test Predictions")
+    plt.xlabel("x")
+    plt.ylabel("y")
     plt.legend()
     plt.tight_layout()
+    plot_average_gradient_metrics(cosine_history, variance_history)
     plt.show()
 
 
-    model_node_perturb.plot_weight_distributions(
-        title="Node perturbation weight distributions",
-        bins=40,
-        include_bias=True,
-        show=True,
-    )
-    model_node_perturb.plot_weight_distributions(
-        title="Weight perturbation weight distributions",
-        bins=40,
-        include_bias=True,
-        show=True,
-    )
-    print("Done")
+if __name__ == "__main__":
+    main()

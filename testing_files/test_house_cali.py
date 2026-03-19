@@ -1,206 +1,282 @@
 from pathlib import Path
 import sys
-import math
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from sklearn.datasets import fetch_california_housing
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from learning_rules_MLP import MLP, three_factor_weight_step, weight_perturb_step, backprop_step, weight_perturb_step_momentum, three_factor_activation_step
+from learning_rules_MLP import MLP, backprop_step, node_perturbation_step, weight_perturb_step
+
+
+METHODS = ["bp", "np", "wp"]
+PERTURBATION_SIGMA = 0.1
+METHOD_CONFIG = {
+    "bp": {"label": "Backprop", "color": "C0", "lr": 0.01, "requires_grad": True},
+    "np": {"label": "Node Perturbation", "color": "C1", "lr": 0.01, "requires_grad": False},
+    "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.01, "requires_grad": False},
+}
+
+SEED = 0
+DIMENSIONS = (8, 128, 64, 1)
+BATCH_SIZE = 256
+EPOCHS = 60
+METRIC_EVERY = 1
+PRINT_EVERY = 1
+
+
+def flatten_model_tensors(weight_tensors, bias_tensors):
+    pieces = []
+    for weight_tensor, bias_tensor in zip(weight_tensors, bias_tensors):
+        pieces.append(weight_tensor.reshape(-1))
+        pieces.append(bias_tensor.reshape(-1))
+    return torch.cat(pieces)
+
+
+def mse_per_sample(prediction, target):
+    loss = F.mse_loss(prediction, target, reduction="none")
+    if loss.dim() > 1:
+        loss = loss.mean(dim=1)
+    return loss.view(-1)
+
+
+def centered_reward_signal(loss_per_sample):
+    reward = -loss_per_sample
+    return reward - reward.mean()
+
+
+def true_gradient(model, xb, yb):
+    requires_grad_state = [parameter.requires_grad for parameter in model.parameters()]
+    for parameter in model.parameters():
+        parameter.requires_grad_(True)
+
+    model.zero_grad(set_to_none=True)
+    prediction = model(xb)
+    loss = F.mse_loss(prediction, yb, reduction="mean")
+    loss.backward()
+
+    weight_grads = [layer.weight.grad.detach().clone() for layer in model.layers]
+    bias_grads = [layer.bias.grad.detach().clone() for layer in model.layers]
+    flat_grad = flatten_model_tensors(weight_grads, bias_grads)
+
+    model.zero_grad(set_to_none=True)
+    for parameter, old_value in zip(model.parameters(), requires_grad_state):
+        parameter.requires_grad_(old_value)
+
+    return weight_grads, bias_grads, flat_grad
+
+
+def node_perturbation_gradient_estimate(model, xb, yb, sigma):
+    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb(xb, sigma)
+    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
+
+    weight_grads = []
+    bias_grads = []
+    for x_in, noise, noise_scale in zip(activations, noises, noise_scales):
+        scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
+        weight_grads.append(torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0))
+        bias_grads.append(scaled_noise.mean(dim=0))
+
+    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
+
+
+def weight_perturbation_gradient_estimate(model, xb, yb, sigma):
+    layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
+    prediction_noisy = layer_outputs[-1]
+    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
+    sigma_safe = sigma + 1e-12
+
+    weight_grads = []
+    bias_grads = []
+    for weight_noise, bias_noise in noises:
+        weight_grads.append((weight_noise * scalar_signal.view(-1, 1, 1)).mean(dim=0) / sigma_safe)
+        bias_grads.append((bias_noise * scalar_signal.view(-1, 1)).mean(dim=0) / sigma_safe)
+
+    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
+
+
+def cosine_similarity_safe(a, b, eps=1e-12):
+    a_norm = torch.norm(a)
+    b_norm = torch.norm(b)
+    if a_norm.item() < eps or b_norm.item() < eps:
+        return 0.0
+    return float(torch.dot(a, b) / (a_norm * b_norm + eps))
+
+
+def gradient_metrics(model, method, xb, yb):
+    _, _, true_grad = true_gradient(model, xb, yb)
+    true_update = -true_grad
+    if method == "bp":
+        estimator_update = true_update
+    elif method == "np":
+        _, _, estimator_update = node_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
+    elif method == "wp":
+        _, _, estimator_update = weight_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
+    diff = estimator_update - true_update
+    cosine = cosine_similarity_safe(estimator_update, true_update)
+    variance_estimate = float(diff.pow(2).mean())
+    return cosine, variance_estimate
+
+
+def evaluate_loss(model, x, y):
+    model.eval()
+    with torch.no_grad():
+        prediction = model(x)
+        return float(F.mse_loss(prediction, y, reduction="mean"))
+
+
+def make_model_copies():
+    torch.manual_seed(SEED)
+    base_model = MLP(DIMENSIONS, activation=torch.sigmoid, require_grad=True)
+    base_state = {name: tensor.detach().clone() for name, tensor in base_model.state_dict().items()}
+
+    models = {}
+    optimizers = {}
+    for method in METHODS:
+        config = METHOD_CONFIG[method]
+        model = MLP(DIMENSIONS, activation=torch.sigmoid, require_grad=config["requires_grad"])
+        model.load_state_dict(base_state)
+        models[method] = model
+        if method == "bp":
+            optimizers[method] = torch.optim.SGD(model.parameters(), lr=config["lr"])
+
+    return models, optimizers
+
+
+def step_method(method, model, optimizer, xb, yb):
+    config = METHOD_CONFIG[method]
+    if method == "bp":
+        return backprop_step(model, xb, yb, optimizer=optimizer)
+    if method == "np":
+        return node_perturbation_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
+    if method == "wp":
+        return weight_perturb_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
+    raise ValueError(f"Unknown method: {method}")
+
+
+def plot_average_gradient_metrics(cosine_history, variance_history):
+    methods_to_compare = [method for method in METHODS if method in {"np", "wp"}]
+    labels = [METHOD_CONFIG[method]["label"] for method in methods_to_compare]
+    colors = [METHOD_CONFIG[method]["color"] for method in methods_to_compare]
+    mean_cosines = [sum(cosine_history[method]) / max(len(cosine_history[method]), 1) for method in methods_to_compare]
+    mean_variances = [sum(variance_history[method]) / max(len(variance_history[method]), 1) for method in methods_to_compare]
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    axes[0].bar(labels, mean_cosines, color=colors)
+    axes[0].set_title("Average Cosine Similarity")
+    axes[0].set_ylabel("Cosine")
+
+    axes[1].bar(labels, mean_variances, color=colors)
+    axes[1].set_title("Average Gradient Variance")
+    axes[1].set_ylabel("Mean squared error")
+
+    fig.tight_layout()
+
+
+def load_california_housing():
+    dataset = fetch_california_housing()
+    x_train, x_test, y_train, y_test = train_test_split(
+        dataset.data,
+        dataset.target,
+        test_size=0.2,
+        random_state=SEED,
+    )
+
+    x_scaler = StandardScaler()
+    y_scaler = StandardScaler()
+
+    x_train = x_scaler.fit_transform(x_train)
+    x_test = x_scaler.transform(x_test)
+    y_train = y_scaler.fit_transform(y_train.reshape(-1, 1))
+    y_test = y_scaler.transform(y_test.reshape(-1, 1))
+
+    return (
+        torch.tensor(x_train, dtype=torch.float32),
+        torch.tensor(y_train, dtype=torch.float32),
+        torch.tensor(x_test, dtype=torch.float32),
+        torch.tensor(y_test, dtype=torch.float32),
+    )
+
+
+def main():
+    x_train, y_train, x_test, y_test = load_california_housing()
+    models, optimizers = make_model_copies()
+
+    iterations = []
+    train_loss_history = {method: [] for method in METHODS}
+    test_loss_history = {method: [] for method in METHODS}
+    cosine_history = {method: [] for method in METHODS}
+    variance_history = {method: [] for method in METHODS}
+
+    iteration = 0
+    batches_per_epoch = (x_train.size(0) + BATCH_SIZE - 1) // BATCH_SIZE
+
+    for epoch in range(EPOCHS):
+        permutation = torch.randperm(x_train.size(0))
+        for batch_start in range(0, x_train.size(0), BATCH_SIZE):
+            batch_end = min(batch_start + BATCH_SIZE, x_train.size(0))
+            batch_indices = permutation[batch_start:batch_end]
+            xb = x_train[batch_indices]
+            yb = y_train[batch_indices]
+            iteration += 1
+
+            for method in METHODS:
+                model = models[method]
+                cosine, variance_estimate = gradient_metrics(model, method, xb, yb)
+                step_method(method, model, optimizers.get(method), xb, yb)
+
+                if iteration % METRIC_EVERY == 0:
+                    train_loss_history[method].append(evaluate_loss(model, x_train, y_train))
+                    test_loss_history[method].append(evaluate_loss(model, x_test, y_test))
+                    cosine_history[method].append(cosine)
+                    variance_history[method].append(variance_estimate)
+
+            if iteration % METRIC_EVERY == 0:
+                iterations.append(iteration)
+
+        if (epoch + 1) % PRINT_EVERY == 0 or epoch == 0 or epoch + 1 == EPOCHS:
+            status_parts = []
+            for method in METHODS:
+                status_parts.append(
+                    f"{method}: train={train_loss_history[method][-1]:.4f}, "
+                    f"test={test_loss_history[method][-1]:.4f}, "
+                    f"cos={cosine_history[method][-1]:.4f}, "
+                    f"var={variance_history[method][-1]:.4e}"
+                )
+            print(
+                f"Epoch {epoch + 1:4d}/{EPOCHS} "
+                f"({batches_per_epoch} batches/epoch) | " + " | ".join(status_parts)
+            )
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    for method in METHODS:
+        config = METHOD_CONFIG[method]
+        axes[0].plot(iterations, train_loss_history[method], label=f"{config['label']} train", color=config["color"])
+        axes[0].plot(iterations, test_loss_history[method], linestyle="--", label=f"{config['label']} test", color=config["color"])
+        axes[1].plot(iterations, cosine_history[method], label=config["label"], color=config["color"])
+        axes[2].plot(iterations, variance_history[method], label=config["label"], color=config["color"])
+
+    axes[0].set_title("California Housing Regression Loss")
+    axes[0].set_ylabel("MSE")
+    axes[0].legend()
+    axes[1].set_title("Cosine Similarity to True Gradient")
+    axes[1].set_ylabel("Cosine")
+    axes[1].legend()
+    axes[2].set_title("Estimated Mean Gradient Variance")
+    axes[2].set_xlabel("Iteration")
+    axes[2].set_ylabel("Mean squared error")
+    axes[2].legend()
+    fig.tight_layout()
+    plot_average_gradient_metrics(cosine_history, variance_history)
+    plt.show()
+
 
 if __name__ == "__main__":
-    print("Loading California Housing dataset...")
-    housing = fetch_california_housing()
-    X_housing = housing.data
-    y_housing = housing.target
-    
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_housing, y_housing, test_size=0.2, random_state=None
-    )
-    
-    scaler_X = StandardScaler()
-    scaler_y = StandardScaler()
-    X_train = scaler_X.fit_transform(X_train)
-    X_test = scaler_X.transform(X_test)
-    y_train = scaler_y.fit_transform(y_train.reshape(-1, 1)).flatten()
-    y_test = scaler_y.transform(y_test.reshape(-1, 1)).flatten()
-    
-    X_train_t = torch.FloatTensor(X_train)
-    y_train_t = torch.FloatTensor(y_train).unsqueeze(1)
-    X_test_t = torch.FloatTensor(X_test)
-    y_test_t = torch.FloatTensor(y_test).unsqueeze(1)
-    
-    print(f"Train samples: {X_train_t.size(0)}, Test samples: {X_test_t.size(0)}")
-    print(f"Input features: {X_train_t.size(1)}")
-    
-    input_dim = X_train.shape[1] 
-    dimensions = (input_dim, 128, 64, 1)
-    model_three_factor = MLP(dimensions, activation=torch.sigmoid)
-    model_two_factor = MLP(dimensions, activation=torch.sigmoid)
-    model_backprop = MLP(dimensions, activation=torch.sigmoid, require_grad=True)
-    model_two_factor_momentum = MLP(dimensions, activation=torch.sigmoid)
-    model_node_perturb = MLP(dimensions, activation=torch.sigmoid)
-    optimizer_bp = torch.optim.SGD(model_backprop.parameters(), lr=0.01)
-    momentum_w = [torch.zeros_like(layer.weight) for layer in model_two_factor_momentum.layers]
-    momentum_b = [torch.zeros_like(layer.bias) for layer in model_two_factor_momentum.layers]
-    
-    epochs = 100
-    batch_size = 256
-    updates_per_epoch = math.ceil(X_train_t.size(0) / batch_size)
-    
-    train_losses_3f = []
-    train_losses_2f = []
-    train_losses_bp = []
-    train_losses_2f_momentum = []
-    train_losses_node_perturb = []
-    test_losses_3f = []
-    test_losses_2f = []
-    test_losses_bp = []
-    test_losses_2f_momentum = []
-    test_losses_node_perturb = []
-    print("\nTraining models...")
-    for epoch in range(epochs):
-        perm = torch.randperm(X_train_t.size(0))
-        for start in range(0, X_train_t.size(0), batch_size):
-            end = min(start + batch_size, X_train_t.size(0))
-            idx = perm[start:end]
-            X_batch = X_train_t[idx]
-            y_batch = y_train_t[idx]
-            
-            loss_two_factor = weight_perturb_step(model_two_factor, X_batch, y_batch,
-                                             eta=0.05, sigma=0.1)
-            loss_backprop = backprop_step(model_backprop, X_batch, y_batch, optimizer=optimizer_bp)
-            loss_three_factor = three_factor_weight_step(model_three_factor, X_batch, y_batch, 
-                                                 eta=0.05, sigma=0.1)
-            loss_momentum, momentum_w, momentum_b = weight_perturb_step_momentum(
-                model_two_factor_momentum, X_batch, y_batch,
-                momentum_w, momentum_b, eta=0.01, sigma=0.1
-            )
-            loss_node_perturb = three_factor_activation_step(model_node_perturb, X_batch, y_batch,
-                                   eta=0.01, sigma=0.1)
-
-        if epoch % 1 == 0 or epoch == epochs - 1:
-            with torch.no_grad():
-                y_pred_3f_train = model_three_factor(X_train_t)
-                y_pred_2f_train = model_two_factor(X_train_t)
-                y_pred_bp_train = model_backprop(X_train_t)
-                y_pred_momentum_train = model_two_factor_momentum(X_train_t)
-                y_pred_node_perturb_train = model_node_perturb(X_train_t)
-                
-                train_loss_3f = F.mse_loss(y_pred_3f_train, y_train_t, reduction='mean').item()
-                train_loss_2f = F.mse_loss(y_pred_2f_train, y_train_t, reduction='mean').item()
-                train_loss_bp = F.mse_loss(y_pred_bp_train, y_train_t, reduction='mean').item()
-                train_loss_momentum = F.mse_loss(y_pred_momentum_train, y_train_t, reduction='mean').item()
-                train_loss_node_perturb = F.mse_loss(y_pred_node_perturb_train, y_train_t, reduction='mean').item()
-
-                y_pred_3f_test = model_three_factor(X_test_t)
-                y_pred_2f_test = model_two_factor(X_test_t)
-                y_pred_bp_test = model_backprop(X_test_t)
-                y_pred_momentum_test = model_two_factor_momentum(X_test_t)
-                y_pred_node_perturb_test = model_node_perturb(X_test_t)
-                
-                test_loss_3f = F.mse_loss(y_pred_3f_test, y_test_t, reduction='mean').item()
-                test_loss_2f = F.mse_loss(y_pred_2f_test, y_test_t, reduction='mean').item()
-                test_loss_bp = F.mse_loss(y_pred_bp_test, y_test_t, reduction='mean').item()
-                test_loss_momentum = F.mse_loss(y_pred_momentum_test, y_test_t, reduction='mean').item()
-                test_loss_node_perturb = F.mse_loss(y_pred_node_perturb_test, y_test_t, reduction='mean').item()
-
-                train_losses_3f.append(train_loss_3f)
-                train_losses_2f.append(train_loss_2f)
-                train_losses_bp.append(train_loss_bp)
-                train_losses_2f_momentum.append(train_loss_momentum)
-                train_losses_node_perturb.append(train_loss_node_perturb)
-                test_losses_3f.append(test_loss_3f)
-                test_losses_2f.append(test_loss_2f)
-                test_losses_bp.append(test_loss_bp)
-                test_losses_2f_momentum.append(test_loss_momentum)
-                test_losses_node_perturb.append(test_loss_node_perturb)
-                    print(f"Epoch {epoch:3d} | Train - 3F: {train_loss_3f:.4f}, 2F: {train_loss_2f:.4f}, BP: {train_loss_bp:.4f}, 2F-M: {train_loss_momentum:.4f}, NP: {train_loss_node_perturb:.4f} | "
-                        f"Test - 3F: {test_loss_3f:.4f}, 2F: {test_loss_2f:.4f}, BP: {test_loss_bp:.4f}, 2F-M: {test_loss_momentum:.4f}, NP: {test_loss_node_perturb:.4f}")
-
-    with torch.no_grad():
-        y_pred_3f = model_three_factor(X_test_t)
-        y_pred_2f = model_two_factor(X_test_t)
-        y_pred_bp = model_backprop(X_test_t)
-        y_pred_momentum = model_two_factor_momentum(X_test_t)
-        y_pred_node_perturb = model_node_perturb(X_test_t)
-
-        final_test_mse_3f = F.mse_loss(y_pred_3f, y_test_t, reduction='mean').item()
-        final_test_mse_2f = F.mse_loss(y_pred_2f, y_test_t, reduction='mean').item()
-        final_test_mse_bp = F.mse_loss(y_pred_bp, y_test_t, reduction='mean').item()
-        final_test_mse_momentum = F.mse_loss(y_pred_momentum, y_test_t, reduction='mean').item()
-        final_test_mse_node_perturb = F.mse_loss(y_pred_node_perturb, y_test_t, reduction='mean').item()
-
-    print(f"\nFinal Test MSE:")
-    print(f"  Three-Factor: {final_test_mse_3f:.6f}")
-    print(f"  Two-Factor:   {final_test_mse_2f:.6f}")
-    print(f"  Backprop SGD: {final_test_mse_bp:.6f}")
-    print(f"  Two-Factor Momentum: {final_test_mse_momentum:.6f}")
-    print(f"  Node-Perturbation: {final_test_mse_node_perturb:.6f}")
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-    
-    updates_plot = [(i + 1) * updates_per_epoch for i in range(epochs)]
-    
-    ax1.plot(updates_plot, train_losses_3f, label='Three-Factor', marker='o')
-    ax1.plot(updates_plot, train_losses_2f, label='Two-Factor', marker='s')
-    ax1.plot(updates_plot, train_losses_bp, label='Backprop SGD', marker='^')
-    ax1.plot(updates_plot, train_losses_2f_momentum, label='Two-Factor Momentum', marker='v')
-    ax1.plot(updates_plot, train_losses_node_perturb, label='Node-Perturbation', marker='x')
-    ax1.set_xlabel('Update')
-    ax1.set_ylabel('Train MSE')
-    ax1.set_title('Training Loss')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    
-    ax2.plot(updates_plot, test_losses_3f, label='Three-Factor', marker='o')
-    ax2.plot(updates_plot, test_losses_2f, label='Two-Factor', marker='s')
-    ax2.plot(updates_plot, test_losses_bp, label='Backprop SGD', marker='^')
-    ax2.plot(updates_plot, test_losses_2f_momentum, label='Two-Factor Momentum', marker='v')
-    ax2.plot(updates_plot, test_losses_node_perturb, label='Node-Perturbation', marker='x')
-    ax2.set_xlabel('Update')
-    ax2.set_ylabel('Test MSE')
-    ax2.set_title('Test Loss')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.show()
-    
-    models = [
-        (y_pred_3f, 'Three-Factor', final_test_mse_3f),
-        (y_pred_2f, 'Two-Factor', final_test_mse_2f),
-        (y_pred_bp, 'Backprop SGD', final_test_mse_bp),
-        (y_pred_momentum, 'Two-Factor Momentum', final_test_mse_momentum),
-        (y_pred_node_perturb, 'Node-Perturbation', final_test_mse_node_perturb),
-    ]
-
-    ncols = 3
-    nrows = math.ceil(len(models) / ncols)
-    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows))
-    axes = axes.flatten()
-    
-    for ax, (y_pred, name, mse) in zip(axes, models):
-        ax.scatter(y_test_t.numpy(), y_pred.numpy(), alpha=0.3, s=10)
-        ax.plot([y_test_t.min(), y_test_t.max()], 
-                [y_test_t.min(), y_test_t.max()], 
-                'r--', lw=2, label='Perfect prediction')
-        ax.set_xlabel('True Values (normalized)')
-        ax.set_ylabel('Predictions (normalized)')
-        ax.set_title(f'{name}\nTest MSE: {mse:.4f}')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-
-    for ax in axes[len(models):]:
-        ax.axis('off')
-    
-    plt.tight_layout()
-    plt.show()
-    
-    print("Done")
+    main()
