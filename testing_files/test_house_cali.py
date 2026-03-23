@@ -18,7 +18,7 @@ PERTURBATION_SIGMA = 0.1
 METHOD_CONFIG = {
     "bp": {"label": "Backprop", "color": "C0", "lr": 0.01, "requires_grad": True},
     "np": {"label": "Node Perturbation", "color": "C1", "lr": 0.01, "requires_grad": False},
-    "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.01, "requires_grad": False},
+    "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.0033, "requires_grad": False},
 }
 
 SEED = 0
@@ -88,13 +88,15 @@ def weight_perturbation_gradient_estimate(model, xb, yb, sigma):
     layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
     prediction_noisy = layer_outputs[-1]
     scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
-    sigma_safe = sigma + 1e-12
+    noise_scale = sigma ** 2 + 1e-12
 
     weight_grads = []
     bias_grads = []
     for weight_noise, bias_noise in noises:
-        weight_grads.append((weight_noise * scalar_signal.view(-1, 1, 1)).mean(dim=0) / sigma_safe)
-        bias_grads.append((bias_noise * scalar_signal.view(-1, 1)).mean(dim=0) / sigma_safe)
+        scaled_weight_noise = scalar_signal.view(-1, 1, 1) * weight_noise / noise_scale
+        scaled_bias_noise = scalar_signal.view(-1, 1) * bias_noise / noise_scale
+        weight_grads.append(scaled_weight_noise.mean(dim=0))
+        bias_grads.append(scaled_bias_noise.mean(dim=0))
 
     return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
 
@@ -176,6 +178,22 @@ def plot_average_gradient_metrics(cosine_history, variance_history):
     axes[1].bar(labels, mean_variances, color=colors)
     axes[1].set_title("Average Gradient Variance")
     axes[1].set_ylabel("Mean squared error")
+
+    fig.tight_layout()
+
+
+def plot_cosine_distributions(cosine_history):
+    methods_to_compare = [method for method in METHODS if method in {"np", "wp"}]
+    fig, axes = plt.subplots(1, len(methods_to_compare), figsize=(10, 4), sharey=True)
+
+    if len(methods_to_compare) == 1:
+        axes = [axes]
+
+    for axis, method in zip(axes, methods_to_compare):
+        axis.hist(cosine_history[method], bins=30, color=METHOD_CONFIG[method]["color"], alpha=0.8)
+        axis.set_title(f"{METHOD_CONFIG[method]['label']} Cosine Distribution")
+        axis.set_xlabel("Cosine similarity")
+        axis.set_ylabel("Count")
 
     fig.tight_layout()
 
@@ -275,6 +293,7 @@ def main():
     axes[2].legend()
     fig.tight_layout()
     plot_average_gradient_metrics(cosine_history, variance_history)
+    plot_cosine_distributions(cosine_history)
     plt.show()
 
 

@@ -127,13 +127,15 @@ def weight_perturbation_update_vector(model, xb, yb, sigma, use_baseline):
     layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
     prediction_noisy = layer_outputs[-1]
     scalar_signal = reward_signal(mse_per_sample(prediction_noisy, yb), use_baseline=use_baseline)
-    sigma_safe = sigma + 1e-12
+    noise_scale = sigma ** 2 + 1e-12
 
     weight_updates = []
     bias_updates = []
     for weight_noise, bias_noise in noises:
-        weight_updates.append((weight_noise * scalar_signal.view(-1, 1, 1)).mean(dim=0) / sigma_safe)
-        bias_updates.append((bias_noise * scalar_signal.view(-1, 1)).mean(dim=0) / sigma_safe)
+        scaled_weight_noise = scalar_signal.view(-1, 1, 1) * weight_noise / noise_scale
+        scaled_bias_noise = scalar_signal.view(-1, 1) * bias_noise / noise_scale
+        weight_updates.append(scaled_weight_noise.mean(dim=0))
+        bias_updates.append(scaled_bias_noise.mean(dim=0))
 
     return flatten_model_tensors(weight_updates, bias_updates)
 

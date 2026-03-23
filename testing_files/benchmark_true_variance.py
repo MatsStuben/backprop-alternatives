@@ -75,6 +75,13 @@ def cosine_similarity_safe(a, b, eps=1e-12):
     return float(torch.dot(a, b) / (a_norm * b_norm + eps))
 
 
+def normalize_vector(vector, eps=1e-12):
+    norm = torch.norm(vector)
+    if norm.item() < eps:
+        return torch.zeros_like(vector)
+    return vector / (norm + eps)
+
+
 def evaluate_loss(model, x, y):
     model.eval()
     with torch.no_grad():
@@ -121,13 +128,15 @@ def weight_perturbation_update_vector(model, xb, yb, sigma):
     layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
     prediction_noisy = layer_outputs[-1]
     scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
-    sigma_safe = sigma + 1e-12
+    noise_scale = sigma ** 2 + 1e-12
 
     weight_updates = []
     bias_updates = []
     for weight_noise, bias_noise in noises:
-        weight_updates.append((weight_noise * scalar_signal.view(-1, 1, 1)).mean(dim=0) / sigma_safe)
-        bias_updates.append((bias_noise * scalar_signal.view(-1, 1)).mean(dim=0) / sigma_safe)
+        scaled_weight_noise = scalar_signal.view(-1, 1, 1) * weight_noise / noise_scale
+        scaled_bias_noise = scalar_signal.view(-1, 1) * bias_noise / noise_scale
+        weight_updates.append(scaled_weight_noise.mean(dim=0))
+        bias_updates.append(scaled_bias_noise.mean(dim=0))
 
     return flatten_model_tensors(weight_updates, bias_updates)
 
@@ -143,7 +152,7 @@ def estimator_update_vector(model, method, xb, yb, sigma):
 def build_sinus_dataset(config):
     generator = torch.Generator().manual_seed(config["seed"])
     x_train = (torch.rand(config["train_samples"], 1, generator=generator) * 4.0 - 2.0) * math.pi
-    y_train = torch.sin(x_train) + config["train_noise_std"] * torch.randn_like(x_train, generator=generator)
+    y_train = torch.sin(x_train) + config["train_noise_std"] * torch.randn(x_train.shape, generator=generator)
     x_test = torch.linspace(-2 * math.pi, 2 * math.pi, config["test_samples"]).unsqueeze(1)
     y_test = torch.sin(x_test)
     return x_train, y_train, x_test, y_test
@@ -247,16 +256,23 @@ def evaluate_true_variance_at_checkpoint(config, checkpoint):
         estimate_matrix = torch.stack(estimates, dim=0)
         estimate_mean = estimate_matrix.mean(dim=0)
         centered = estimate_matrix - estimate_mean
+        normalized_estimate_matrix = torch.stack([normalize_vector(estimate) for estimate in estimates], dim=0)
+        normalized_estimate_mean = normalized_estimate_matrix.mean(dim=0)
+        normalized_centered = normalized_estimate_matrix - normalized_estimate_mean
 
         mean_variance = float(centered.pow(2).mean())
+        normalized_mean_variance = float(normalized_centered.pow(2).mean())
         bias_squared = float((estimate_mean - true_update).pow(2).mean())
         mse_to_true_update = float((estimate_matrix - true_update.unsqueeze(0)).pow(2).mean())
+        mean_absolute_error = float((estimate_matrix - true_update.unsqueeze(0)).abs().mean())
         cosine_to_true_update = cosine_similarity_safe(estimate_mean, true_update)
 
         results[method] = {
             "mean_variance": mean_variance,
+            "normalized_mean_variance": normalized_mean_variance,
             "bias_squared": bias_squared,
             "mse_to_true_update": mse_to_true_update,
+            "mean_absolute_error": mean_absolute_error,
             "cosine_to_true_update": cosine_to_true_update,
         }
 
@@ -340,9 +356,11 @@ def main():
                 metrics = result["metrics"][checkpoint_label][method]
                 print(
                     f"    {method}: variance={metrics['mean_variance']:.6e}, "
+                    f"norm_variance={metrics['normalized_mean_variance']:.6e}, "
                     f"bias_sq={metrics['bias_squared']:.6e}, "
                     f"mse={metrics['mse_to_true_update']:.6e}, "
-                    f"cos={metrics['cosine_to_true_update']:.4f}"
+                    f"cos={metrics['cosine_to_true_update']:.4f}, "
+                    f"mae={metrics['mean_absolute_error']:.6e}"
                 )
 
     plot_results(all_results)

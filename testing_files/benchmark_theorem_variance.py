@@ -14,21 +14,18 @@ from sklearn.preprocessing import StandardScaler
 from learning_rules_MLP import MLP, backprop_step
 
 
-MC_SAMPLES = 100
-EVAL_SUBSET_SIZE = 50
+MC_SAMPLES = 200
+EVAL_SUBSET_SIZE = 20
 CHECKPOINT_LABELS = ["beginning", "middle", "final"]
-METHODS = ["np", "wp"]
-METHOD_COLORS = {"np": "C1", "wp": "C2"}
-METHOD_LABELS = {"np": "Node Perturbation", "wp": "Weight Perturbation"}
 
 SINUS_CONFIG = {
     "name": "Sinus",
     "seed": 0,
     "dimensions": (1, 32, 16, 1),
     "batch_size": 64,
-    "epochs": 400,
-    "lr": 0.1,
-    "sigma": 0.1,
+    "epochs": 1000,
+    "lr": 0.05,
+    "sigma": 0.2,
     "thresholds": {"middle": 0.2, "final": 0.1},
     "train_samples": 512,
     "test_samples": 512,
@@ -40,7 +37,7 @@ CALI_CONFIG = {
     "seed": 0,
     "dimensions": (8, 128, 64, 1),
     "batch_size": 256,
-    "epochs": 80,
+    "epochs": 100,
     "lr": 0.01,
     "sigma": 0.1,
     "thresholds": {"middle": 0.6, "final": 0.4},
@@ -55,24 +52,6 @@ def flatten_model_tensors(weight_tensors, bias_tensors):
     return torch.cat(pieces)
 
 
-def mse_per_sample(prediction, target):
-    loss = F.mse_loss(prediction, target, reduction="none")
-    if loss.dim() > 1:
-        loss = loss.mean(dim=1)
-    return loss.view(-1)
-
-
-def centered_reward_signal(loss_per_sample):
-    reward = -loss_per_sample
-    return reward - reward.mean()
-
-
-def reward_signal(loss_per_sample, use_baseline):
-    if use_baseline:
-        return centered_reward_signal(loss_per_sample)
-    return -loss_per_sample
-
-
 def evaluate_loss(model, x, y):
     model.eval()
     with torch.no_grad():
@@ -80,62 +59,10 @@ def evaluate_loss(model, x, y):
         return float(F.mse_loss(prediction, y, reduction="mean"))
 
 
-def true_update_vector(model, xb, yb):
-    requires_grad_state = [parameter.requires_grad for parameter in model.parameters()]
-    for parameter in model.parameters():
-        parameter.requires_grad_(True)
-
-    model.zero_grad(set_to_none=True)
-    prediction = model(xb)
-    loss = F.mse_loss(prediction, yb, reduction="mean")
-    loss.backward()
-
-    weight_grads = [layer.weight.grad.detach().clone() for layer in model.layers]
-    bias_grads = [layer.bias.grad.detach().clone() for layer in model.layers]
-    flat_grad = flatten_model_tensors(weight_grads, bias_grads)
-
-    model.zero_grad(set_to_none=True)
-    for parameter, old_value in zip(model.parameters(), requires_grad_state):
-        parameter.requires_grad_(old_value)
-
-    return -flat_grad
-
-
-def node_perturbation_update_vector(model, xb, yb, sigma, use_baseline):
-    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb(xb, sigma)
-    scalar_signal = reward_signal(mse_per_sample(prediction_noisy, yb), use_baseline=use_baseline)
-
-    weight_updates = []
-    bias_updates = []
-    for x_in, noise, noise_scale in zip(activations, noises, noise_scales):
-        scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
-        weight_updates.append(torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0))
-        bias_updates.append(scaled_noise.mean(dim=0))
-
-    return flatten_model_tensors(weight_updates, bias_updates)
-
-
-def weight_perturbation_update_vector(model, xb, yb, sigma, use_baseline):
-    layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
-    prediction_noisy = layer_outputs[-1]
-    scalar_signal = reward_signal(mse_per_sample(prediction_noisy, yb), use_baseline=use_baseline)
-    sigma_safe = sigma + 1e-12
-
-    weight_updates = []
-    bias_updates = []
-    for weight_noise, bias_noise in noises:
-        weight_updates.append((weight_noise * scalar_signal.view(-1, 1, 1)).mean(dim=0) / sigma_safe)
-        bias_updates.append((bias_noise * scalar_signal.view(-1, 1)).mean(dim=0) / sigma_safe)
-
-    return flatten_model_tensors(weight_updates, bias_updates)
-
-
-def estimator_update_vector(model, method, xb, yb, sigma, use_baseline):
-    if method == "np":
-        return node_perturbation_update_vector(model, xb, yb, sigma, use_baseline=use_baseline)
-    if method == "wp":
-        return weight_perturbation_update_vector(model, xb, yb, sigma, use_baseline=use_baseline)
-    raise ValueError(f"Unknown method: {method}")
+def make_initial_state(dimensions, seed):
+    torch.manual_seed(seed)
+    model = MLP(dimensions, activation=torch.sigmoid, require_grad=True)
+    return {name: tensor.detach().clone() for name, tensor in model.state_dict().items()}
 
 
 def build_sinus_dataset(config):
@@ -171,12 +98,6 @@ def build_cali_dataset(config):
     )
 
 
-def make_initial_state(dimensions, seed):
-    torch.manual_seed(seed)
-    model = MLP(dimensions, activation=torch.sigmoid, require_grad=True)
-    return {name: tensor.detach().clone() for name, tensor in model.state_dict().items()}
-
-
 def locate_checkpoints(config, x_train, y_train):
     initial_state = make_initial_state(config["dimensions"], config["seed"])
     model = MLP(config["dimensions"], activation=torch.sigmoid, require_grad=True)
@@ -186,7 +107,7 @@ def locate_checkpoints(config, x_train, y_train):
     checkpoints = {}
     batch_size = config["batch_size"]
 
-    for epoch in range(config["epochs"]):
+    for _epoch in range(config["epochs"]):
         permutation = torch.randperm(x_train.size(0))
         for batch_start in range(0, x_train.size(0), batch_size):
             batch_end = min(batch_start + batch_size, x_train.size(0))
@@ -228,68 +149,127 @@ def locate_checkpoints(config, x_train, y_train):
     raise RuntimeError(f"{config['name']} did not reach checkpoints: {missing}")
 
 
-def evaluate_variances_at_checkpoint(config, checkpoint):
-    results = {}
-    x_eval = checkpoint["x_eval"]
-    y_eval = checkpoint["y_eval"]
+def theorem_estimators_from_weight_noise(model, xb, yb, sigma):
+    weight_estimates = []
+    bias_estimates = []
+    node_weight_estimates = []
+    node_bias_estimates = []
 
-    for method in METHODS:
-        model = MLP(config["dimensions"], activation=torch.sigmoid, require_grad=False)
-        model.load_state_dict(checkpoint["state_dict"])
+    h = xb
+    final_layer = len(model.layers) - 1
+    prediction = None
 
-        sample_variances = []
-        for sample_index in range(x_eval.size(0)):
-            xb = x_eval[sample_index:sample_index + 1]
-            yb = y_eval[sample_index:sample_index + 1]
-            true_update = true_update_vector(model, xb, yb)
-            squared_errors = []
+    for layer_index, layer in enumerate(model.layers):
+        weight_noise = torch.randn_like(layer.weight)
+        bias_noise = torch.randn_like(layer.bias)
 
-            for _ in range(MC_SAMPLES):
-                estimate = estimator_update_vector(
-                    model,
-                    method,
-                    xb,
-                    yb,
-                    config["sigma"],
-                    use_baseline=False,
-                )
-                squared_errors.append((estimate - true_update).pow(2).mean())
+        augmented_input_sq_norm = 1.0 + h.pow(2).sum()
+        induced_noise = sigma * (weight_noise @ h.squeeze(0) + bias_noise)
 
-            sample_variances.append(float(torch.stack(squared_errors).mean()))
+        pre_activation = layer(h).squeeze(0) + induced_noise
+        if layer_index == final_layer:
+            next_h = model.output_activation(pre_activation) if model.output_activation else pre_activation
+        else:
+            next_h = model.activation(pre_activation)
 
-        results[method] = {
-            "sample_mean_variance": sum(sample_variances) / len(sample_variances),
-        }
+        scalar_factor = h.squeeze(0) / (sigma * augmented_input_sq_norm)
+        node_weight = -weight_noise.new_zeros(layer.weight.shape)
+        node_bias = -bias_noise.new_zeros(layer.bias.shape)
+        for neuron_index in range(layer.weight.shape[0]):
+            node_weight[neuron_index] = induced_noise[neuron_index] * scalar_factor
+            node_bias[neuron_index] = induced_noise[neuron_index] / (sigma * augmented_input_sq_norm)
 
-    return results
+        weight_estimates.append(weight_noise)
+        bias_estimates.append(bias_noise)
+        node_weight_estimates.append(node_weight)
+        node_bias_estimates.append(node_bias)
+
+        h = next_h.unsqueeze(0)
+        prediction = h
+
+    delta_loss = F.mse_loss(prediction, yb, reduction="mean")
+    wp_weights = [-(delta_loss / sigma) * noise for noise in weight_estimates]
+    wp_biases = [-(delta_loss / sigma) * noise for noise in bias_estimates]
+    np_weights = [-(delta_loss / sigma) * noise for noise in node_weight_estimates]
+    np_biases = [-(delta_loss / sigma) * noise for noise in node_bias_estimates]
+
+    return (
+        flatten_model_tensors(wp_weights, wp_biases),
+        flatten_model_tensors(np_weights, np_biases),
+    )
+
+
+def evaluate_theorem_at_checkpoint(config, checkpoint):
+    model = MLP(config["dimensions"], activation=torch.sigmoid, require_grad=False)
+    model.load_state_dict(checkpoint["state_dict"])
+
+    wp_coordinate_variances = []
+    np_coordinate_variances = []
+    coordinate_fraction_holds = []
+    sample_mean_gap = []
+
+    for sample_index in range(checkpoint["x_eval"].size(0)):
+        xb = checkpoint["x_eval"][sample_index:sample_index + 1]
+        yb = checkpoint["y_eval"][sample_index:sample_index + 1]
+
+        wp_draws = []
+        np_draws = []
+        for _ in range(MC_SAMPLES):
+            wp_estimate, np_estimate = theorem_estimators_from_weight_noise(model, xb, yb, config["sigma"])
+            wp_draws.append(wp_estimate)
+            np_draws.append(np_estimate)
+
+        wp_matrix = torch.stack(wp_draws, dim=0)
+        np_matrix = torch.stack(np_draws, dim=0)
+        wp_var = wp_matrix.var(dim=0, unbiased=True)
+        np_var = np_matrix.var(dim=0, unbiased=True)
+
+        wp_coordinate_variances.append(wp_var.mean())
+        np_coordinate_variances.append(np_var.mean())
+        coordinate_fraction_holds.append((np_var <= wp_var + 1e-12).float().mean())
+        sample_mean_gap.append((wp_var - np_var).mean())
+
+    return {
+        "wp_mean_coordinate_variance": float(torch.stack(wp_coordinate_variances).mean()),
+        "np_mean_coordinate_variance": float(torch.stack(np_coordinate_variances).mean()),
+        "mean_variance_gap": float(torch.stack(sample_mean_gap).mean()),
+        "mean_fraction_coordinates_holds": float(torch.stack(coordinate_fraction_holds).mean()),
+    }
 
 
 def run_dataset_benchmark(config, dataset_builder):
     x_train, y_train, _, _ = dataset_builder(config)
     checkpoints = locate_checkpoints(config, x_train, y_train)
-
-    dataset_results = {}
+    metrics = {}
     for checkpoint_label in CHECKPOINT_LABELS:
-        dataset_results[checkpoint_label] = evaluate_variances_at_checkpoint(config, checkpoints[checkpoint_label])
+        metrics[checkpoint_label] = evaluate_theorem_at_checkpoint(config, checkpoints[checkpoint_label])
+    return checkpoints, metrics
 
-    return checkpoints, dataset_results
 
-
-def plot_variance_results(all_results):
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
-    dataset_names = list(all_results.keys())
+def plot_results(all_results):
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
     x_positions = list(range(len(CHECKPOINT_LABELS)))
 
-    for axis, dataset_name in zip(axes, dataset_names):
-        dataset_results = all_results[dataset_name]["metrics"]
-        for method in METHODS:
-            values = [dataset_results[label][method]["sample_mean_variance"] for label in CHECKPOINT_LABELS]
-            axis.plot(x_positions, values, marker="o", color=METHOD_COLORS[method], label=METHOD_LABELS[method])
+    for row_index, dataset_name in enumerate(all_results.keys()):
+        variance_axis = axes[row_index][0]
+        fraction_axis = axes[row_index][1]
+        metrics = all_results[dataset_name]["metrics"]
 
-        axis.set_title(dataset_name)
-        axis.set_xticks(x_positions, CHECKPOINT_LABELS)
-        axis.set_ylabel("Mean variance")
-        axis.legend()
+        wp_values = [metrics[label]["wp_mean_coordinate_variance"] for label in CHECKPOINT_LABELS]
+        np_values = [metrics[label]["np_mean_coordinate_variance"] for label in CHECKPOINT_LABELS]
+        fraction_values = [metrics[label]["mean_fraction_coordinates_holds"] for label in CHECKPOINT_LABELS]
+
+        variance_axis.plot(x_positions, wp_values, marker="o", color="C2", label="WP")
+        variance_axis.plot(x_positions, np_values, marker="o", color="C1", label="NP")
+        variance_axis.set_title(f"{dataset_name}: Coordinate Variance")
+        variance_axis.set_ylabel("Mean coordinate variance")
+        variance_axis.set_xticks(x_positions, CHECKPOINT_LABELS)
+        variance_axis.legend()
+
+        fraction_axis.plot(x_positions, fraction_values, marker="o", color="C0")
+        fraction_axis.set_title(f"{dataset_name}: Fraction NP <= WP")
+        fraction_axis.set_ylabel("Fraction of coordinates")
+        fraction_axis.set_xticks(x_positions, CHECKPOINT_LABELS)
 
     fig.tight_layout()
     plt.show()
@@ -313,12 +293,16 @@ def main():
         print(dataset_name)
         for checkpoint_label in CHECKPOINT_LABELS:
             train_loss = result["checkpoints"][checkpoint_label]["train_loss"]
-            print(f"  {checkpoint_label}: train_loss={train_loss:.4f}")
-            for method in METHODS:
-                variance_value = result["metrics"][checkpoint_label][method]["sample_mean_variance"]
-                print(f"    {method}: sample_mean_variance={variance_value:.6e}")
+            metrics = result["metrics"][checkpoint_label]
+            print(
+                f"  {checkpoint_label}: train_loss={train_loss:.4f}, "
+                f"wp_var={metrics['wp_mean_coordinate_variance']:.6e}, "
+                f"np_var={metrics['np_mean_coordinate_variance']:.6e}, "
+                f"gap={metrics['mean_variance_gap']:.6e}, "
+                f"frac_holds={metrics['mean_fraction_coordinates_holds']:.4f}"
+            )
 
-    plot_variance_results(all_results)
+    plot_results(all_results)
 
 
 if __name__ == "__main__":
