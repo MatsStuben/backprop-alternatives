@@ -34,6 +34,7 @@ class MLP(nn.Module):
         return h
 
     def plot_weight_distributions(
+        self,
         model,
         bins=50,
         include_bias=True,
@@ -181,12 +182,14 @@ def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1):
     prediction_noisy = layer_outputs[-1]
     loss_per_sample = _mean_loss_per_sample(prediction_noisy, target)
     scalar_signal = _centered_reward_signal(loss_per_sample)
-    sigma_safe = sigma + 1e-12
+    noise_scale = sigma ** 2 + 1e-12
 
     with torch.no_grad():
         for layer, (weight_noise, bias_noise) in zip(model.layers, noises):
-            weight_update = eta * (weight_noise * scalar_signal.view(-1, 1, 1)).mean(dim=0) / sigma_safe
-            bias_update = eta * (bias_noise * scalar_signal.view(-1, 1)).mean(dim=0) / sigma_safe
+            scaled_weight_noise = scalar_signal.view(-1, 1, 1) * weight_noise / noise_scale
+            scaled_bias_noise = scalar_signal.view(-1, 1) * bias_noise / noise_scale
+            weight_update = eta * scaled_weight_noise.mean(dim=0)
+            bias_update = eta * scaled_bias_noise.mean(dim=0)
 
             layer.weight += weight_update
             layer.bias += bias_update
@@ -207,5 +210,4 @@ def backprop_step(model, X, target, optimizer, loss_fn=F.mse_loss):
     optimizer.step()
 
     return loss.item()
-
 
