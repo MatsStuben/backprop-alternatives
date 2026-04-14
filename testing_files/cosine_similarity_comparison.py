@@ -17,9 +17,13 @@ from learning_rules_MLP import MLP, backprop_step
 MC_SAMPLES = 100
 EVAL_SUBSET_SIZE = 50
 CHECKPOINT_LABELS = ["beginning", "middle", "final"]
-METHODS = ["np", "wp"]
-METHOD_COLORS = {"np": "C1", "wp": "C2"}
-METHOD_LABELS = {"np": "Node Perturbation", "wp": "Weight Perturbation"}
+METHODS = ["np_induced", "np_fixed", "wp"]
+METHOD_COLORS = {"np_induced": "C1", "np_fixed": "C3", "wp": "C2"}
+METHOD_LABELS = {
+    "np_induced": "Node Perturbation (Induced)",
+    "np_fixed": "Node Perturbation (Fixed Sigma)",
+    "wp": "Weight Perturbation",
+}
 
 SINUS_CONFIG = {
     "name": "Sinus",
@@ -123,6 +127,20 @@ def node_perturbation_update_vector(model, xb, yb, sigma, use_baseline):
     return flatten_model_tensors(weight_updates, bias_updates)
 
 
+def node_perturbation_fixed_sigma_update_vector(model, xb, yb, sigma, use_baseline):
+    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb_fixed_sigma(xb, sigma)
+    scalar_signal = reward_signal(mse_per_sample(prediction_noisy, yb), use_baseline=use_baseline)
+
+    weight_updates = []
+    bias_updates = []
+    for x_in, noise, noise_scale in zip(activations, noises, noise_scales):
+        scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
+        weight_updates.append(torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0))
+        bias_updates.append(scaled_noise.mean(dim=0))
+
+    return flatten_model_tensors(weight_updates, bias_updates)
+
+
 def weight_perturbation_update_vector(model, xb, yb, sigma, use_baseline):
     layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
     prediction_noisy = layer_outputs[-1]
@@ -141,8 +159,10 @@ def weight_perturbation_update_vector(model, xb, yb, sigma, use_baseline):
 
 
 def estimator_update_vector(model, method, xb, yb, sigma, use_baseline):
-    if method == "np":
+    if method == "np_induced":
         return node_perturbation_update_vector(model, xb, yb, sigma, use_baseline=use_baseline)
+    if method == "np_fixed":
+        return node_perturbation_fixed_sigma_update_vector(model, xb, yb, sigma, use_baseline=use_baseline)
     if method == "wp":
         return weight_perturbation_update_vector(model, xb, yb, sigma, use_baseline=use_baseline)
     raise ValueError(f"Unknown method: {method}")

@@ -16,7 +16,7 @@ from learning_rules_MLP import (
     three_factor_weight_step,
     weight_perturb_step,
     backprop_step,
-    three_factor_activation_step,
+    node_perturbation_step,
 )
 
 # -----------------------------
@@ -88,7 +88,7 @@ def run_single_trial(seed, X, Y, X_test, Y_test, epochs=400, batch_size=128, dev
             )
 
             # Three-factor node perturbation
-            _ = three_factor_activation_step(
+            _ = node_perturbation_step(
                 model_np, X_batch, Y_batch, eta=0.2, sigma=0.1
             )
 

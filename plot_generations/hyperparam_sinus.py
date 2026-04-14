@@ -17,7 +17,7 @@ from learning_rules_MLP import (
     three_factor_weight_step,
     weight_perturb_step,
     backprop_step,
-    three_factor_activation_step,
+    node_perturbation_step,
 )
 
 # ---------------------------------------------------
@@ -94,7 +94,7 @@ def run_one_setting(
             elif method == "wp3":
                 _ = three_factor_weight_step(model, Xb, yb, eta=hparams["eta"], sigma=hparams["sigma"])
             elif method == "np":
-                _ = three_factor_activation_step(model, Xb, yb, eta=hparams["eta"], sigma=hparams["sigma"])
+                _ = node_perturbation_step(model, Xb, yb, eta=hparams["eta"], sigma=hparams["sigma"])
             else:
                 raise ValueError(f"Unknown method: {method}")
 

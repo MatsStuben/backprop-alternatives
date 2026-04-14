@@ -139,6 +139,32 @@ class MLP(nn.Module):
 
         return acts, noises, noise_scales, a_noisy
 
+    def forward_node_perturb_fixed_sigma(self, x, sigma):
+        """
+        Forward pass for node perturbation with isotropic pre-activation noise
+        of variance `sigma**2`, independent of the incoming activation norm.
+        """
+        acts = [x]
+        noises = []
+        noise_scales = []
+        last = len(self.layers) - 1
+        a_noisy = x
+
+        for i, layer in enumerate(self.layers):
+            z_noisy = layer(a_noisy)
+            eps = torch.randn_like(z_noisy, device=z_noisy.device, dtype=z_noisy.dtype)
+            noise_scale = torch.full_like(z_noisy, sigma)
+            noises.append(eps)
+            noise_scales.append(noise_scale)
+            z_noisy = z_noisy + noise_scale * eps
+            if i == last:
+                a_noisy = self.output_activation(z_noisy) if self.output_activation else z_noisy
+            else:
+                a_noisy = self.activation(z_noisy)
+            acts.append(a_noisy)
+
+        return acts, noises, noise_scales, a_noisy
+
 def _mean_loss_per_sample(prediction, target):
     loss = F.mse_loss(prediction, target, reduction='none')
     if loss.dim() > 1:
@@ -158,6 +184,28 @@ def node_perturbation_step(model, X, target, eta=0.5, sigma=0.1):
     """
     model.train()
     activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb(X, sigma)
+    loss_per_sample = _mean_loss_per_sample(prediction_noisy, target)
+    scalar_signal = _centered_reward_signal(loss_per_sample)
+
+    with torch.no_grad():
+        for layer, x_in, noise, noise_scale in zip(model.layers, activations, noises, noise_scales):
+            scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
+            weight_update = eta * torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
+            bias_update = eta * scaled_noise.mean(dim=0)
+
+            layer.weight += weight_update
+            layer.bias += bias_update
+
+    return loss_per_sample.mean().item()
+
+
+def node_perturbation_step_fixed_sigma(model, X, target, eta=0.5, sigma=0.1):
+    """
+    Node perturbation with a centered reward signal and fixed pre-activation
+    noise variance `sigma**2` at every node.
+    """
+    model.train()
+    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb_fixed_sigma(X, sigma)
     loss_per_sample = _mean_loss_per_sample(prediction_noisy, target)
     scalar_signal = _centered_reward_signal(loss_per_sample)
 
@@ -210,4 +258,3 @@ def backprop_step(model, X, target, optimizer, loss_fn=F.mse_loss):
     optimizer.step()
 
     return loss.item()
-

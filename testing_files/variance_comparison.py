@@ -17,6 +17,11 @@ from learning_rules_MLP import MLP, backprop_step
 MC_SAMPLES = 200
 EVAL_SUBSET_SIZE = 20
 CHECKPOINT_LABELS = ["beginning", "middle", "final"]
+METHOD_LABELS = {
+    "wp": "Weight Perturbation",
+    "np_induced": "Node Perturbation (Induced)",
+    "np_fixed": "Node Perturbation (Fixed Sigma)",
+}
 
 SINUS_CONFIG = {
     "name": "Sinus",
@@ -199,41 +204,83 @@ def theorem_estimators_from_weight_noise(model, xb, yb, sigma):
     )
 
 
+def fixed_sigma_node_estimator(model, xb, yb, sigma):
+    weight_estimates = []
+    bias_estimates = []
+
+    h = xb
+    final_layer = len(model.layers) - 1
+    prediction = None
+
+    for layer_index, layer in enumerate(model.layers):
+        noise = sigma * torch.randn(layer.weight.shape[0], device=h.device, dtype=h.dtype)
+        pre_activation = layer(h).squeeze(0) + noise
+        if layer_index == final_layer:
+            next_h = model.output_activation(pre_activation) if model.output_activation else pre_activation
+        else:
+            next_h = model.activation(pre_activation)
+
+        weight_estimates.append(noise.unsqueeze(1) * h.squeeze(0).unsqueeze(0) / (sigma ** 2))
+        bias_estimates.append(noise / (sigma ** 2))
+
+        h = next_h.unsqueeze(0)
+        prediction = h
+
+    delta_loss = F.mse_loss(prediction, yb, reduction="mean")
+    np_fixed_weights = [-(delta_loss * estimate) for estimate in weight_estimates]
+    np_fixed_biases = [-(delta_loss * estimate) for estimate in bias_estimates]
+    return flatten_model_tensors(np_fixed_weights, np_fixed_biases)
+
+
 def evaluate_theorem_at_checkpoint(config, checkpoint):
     model = MLP(config["dimensions"], activation=torch.sigmoid, require_grad=False)
     model.load_state_dict(checkpoint["state_dict"])
 
     wp_coordinate_variances = []
-    np_coordinate_variances = []
-    coordinate_fraction_holds = []
-    sample_mean_gap = []
+    np_induced_coordinate_variances = []
+    np_fixed_coordinate_variances = []
+    induced_fraction_holds = []
+    fixed_fraction_holds = []
+    induced_mean_gap = []
+    fixed_mean_gap = []
 
     for sample_index in range(checkpoint["x_eval"].size(0)):
         xb = checkpoint["x_eval"][sample_index:sample_index + 1]
         yb = checkpoint["y_eval"][sample_index:sample_index + 1]
 
         wp_draws = []
-        np_draws = []
+        np_induced_draws = []
+        np_fixed_draws = []
         for _ in range(MC_SAMPLES):
-            wp_estimate, np_estimate = theorem_estimators_from_weight_noise(model, xb, yb, config["sigma"])
+            wp_estimate, np_induced_estimate = theorem_estimators_from_weight_noise(model, xb, yb, config["sigma"])
+            np_fixed_estimate = fixed_sigma_node_estimator(model, xb, yb, config["sigma"])
             wp_draws.append(wp_estimate)
-            np_draws.append(np_estimate)
+            np_induced_draws.append(np_induced_estimate)
+            np_fixed_draws.append(np_fixed_estimate)
 
         wp_matrix = torch.stack(wp_draws, dim=0)
-        np_matrix = torch.stack(np_draws, dim=0)
+        np_induced_matrix = torch.stack(np_induced_draws, dim=0)
+        np_fixed_matrix = torch.stack(np_fixed_draws, dim=0)
         wp_var = wp_matrix.var(dim=0, unbiased=True)
-        np_var = np_matrix.var(dim=0, unbiased=True)
+        np_induced_var = np_induced_matrix.var(dim=0, unbiased=True)
+        np_fixed_var = np_fixed_matrix.var(dim=0, unbiased=True)
 
         wp_coordinate_variances.append(wp_var.mean())
-        np_coordinate_variances.append(np_var.mean())
-        coordinate_fraction_holds.append((np_var <= wp_var + 1e-12).float().mean())
-        sample_mean_gap.append((wp_var - np_var).mean())
+        np_induced_coordinate_variances.append(np_induced_var.mean())
+        np_fixed_coordinate_variances.append(np_fixed_var.mean())
+        induced_fraction_holds.append((np_induced_var <= wp_var + 1e-12).float().mean())
+        fixed_fraction_holds.append((np_fixed_var <= wp_var + 1e-12).float().mean())
+        induced_mean_gap.append((wp_var - np_induced_var).mean())
+        fixed_mean_gap.append((wp_var - np_fixed_var).mean())
 
     return {
         "wp_mean_coordinate_variance": float(torch.stack(wp_coordinate_variances).mean()),
-        "np_mean_coordinate_variance": float(torch.stack(np_coordinate_variances).mean()),
-        "mean_variance_gap": float(torch.stack(sample_mean_gap).mean()),
-        "mean_fraction_coordinates_holds": float(torch.stack(coordinate_fraction_holds).mean()),
+        "np_induced_mean_coordinate_variance": float(torch.stack(np_induced_coordinate_variances).mean()),
+        "np_fixed_mean_coordinate_variance": float(torch.stack(np_fixed_coordinate_variances).mean()),
+        "np_induced_mean_variance_gap": float(torch.stack(induced_mean_gap).mean()),
+        "np_fixed_mean_variance_gap": float(torch.stack(fixed_mean_gap).mean()),
+        "np_induced_fraction_leq_wp": float(torch.stack(induced_fraction_holds).mean()),
+        "np_fixed_fraction_leq_wp": float(torch.stack(fixed_fraction_holds).mean()),
     }
 
 
@@ -256,20 +303,25 @@ def plot_results(all_results):
         metrics = all_results[dataset_name]["metrics"]
 
         wp_values = [metrics[label]["wp_mean_coordinate_variance"] for label in CHECKPOINT_LABELS]
-        np_values = [metrics[label]["np_mean_coordinate_variance"] for label in CHECKPOINT_LABELS]
-        fraction_values = [metrics[label]["mean_fraction_coordinates_holds"] for label in CHECKPOINT_LABELS]
+        np_induced_values = [metrics[label]["np_induced_mean_coordinate_variance"] for label in CHECKPOINT_LABELS]
+        np_fixed_values = [metrics[label]["np_fixed_mean_coordinate_variance"] for label in CHECKPOINT_LABELS]
+        induced_fraction_values = [metrics[label]["np_induced_fraction_leq_wp"] for label in CHECKPOINT_LABELS]
+        fixed_fraction_values = [metrics[label]["np_fixed_fraction_leq_wp"] for label in CHECKPOINT_LABELS]
 
-        variance_axis.plot(x_positions, wp_values, marker="o", color="C2", label="WP")
-        variance_axis.plot(x_positions, np_values, marker="o", color="C1", label="NP")
+        variance_axis.plot(x_positions, wp_values, marker="o", color="C2", label=METHOD_LABELS["wp"])
+        variance_axis.plot(x_positions, np_induced_values, marker="o", color="C1", label=METHOD_LABELS["np_induced"])
+        variance_axis.plot(x_positions, np_fixed_values, marker="o", color="C3", label=METHOD_LABELS["np_fixed"])
         variance_axis.set_title(f"{dataset_name}: Coordinate Variance")
         variance_axis.set_ylabel("Mean coordinate variance")
         variance_axis.set_xticks(x_positions, CHECKPOINT_LABELS)
         variance_axis.legend()
 
-        fraction_axis.plot(x_positions, fraction_values, marker="o", color="C0")
-        fraction_axis.set_title(f"{dataset_name}: Fraction NP <= WP")
+        fraction_axis.plot(x_positions, induced_fraction_values, marker="o", color="C1", label="Induced NP <= WP")
+        fraction_axis.plot(x_positions, fixed_fraction_values, marker="o", color="C3", label="Fixed NP <= WP")
+        fraction_axis.set_title(f"{dataset_name}: Fraction Coordinate Variance <= WP")
         fraction_axis.set_ylabel("Fraction of coordinates")
         fraction_axis.set_xticks(x_positions, CHECKPOINT_LABELS)
+        fraction_axis.legend()
 
     fig.tight_layout()
     plt.show()
@@ -297,9 +349,12 @@ def main():
             print(
                 f"  {checkpoint_label}: train_loss={train_loss:.4f}, "
                 f"wp_var={metrics['wp_mean_coordinate_variance']:.6e}, "
-                f"np_var={metrics['np_mean_coordinate_variance']:.6e}, "
-                f"gap={metrics['mean_variance_gap']:.6e}, "
-                f"frac_holds={metrics['mean_fraction_coordinates_holds']:.4f}"
+                f"np_induced_var={metrics['np_induced_mean_coordinate_variance']:.6e}, "
+                f"np_fixed_var={metrics['np_fixed_mean_coordinate_variance']:.6e}, "
+                f"gap_induced={metrics['np_induced_mean_variance_gap']:.6e}, "
+                f"gap_fixed={metrics['np_fixed_mean_variance_gap']:.6e}, "
+                f"frac_induced={metrics['np_induced_fraction_leq_wp']:.4f}, "
+                f"frac_fixed={metrics['np_fixed_fraction_leq_wp']:.4f}"
             )
 
     plot_results(all_results)

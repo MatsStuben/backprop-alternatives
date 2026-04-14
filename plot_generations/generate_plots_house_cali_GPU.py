@@ -20,7 +20,7 @@ from learning_rules_MLP import (
     three_factor_weight_step,
     weight_perturb_step,
     backprop_step,
-    three_factor_activation_step,
+    node_perturbation_step,
 )
 
 # ---------------------------------------------------
@@ -113,7 +113,7 @@ def run_single_trial(seed,
             _ = three_factor_weight_step(model_wp3, X_batch, y_batch, eta=0.07, sigma=0.1)
 
             # Node perturbation
-            _ = three_factor_activation_step(model_np, X_batch, y_batch, eta=0.02, sigma=0.2)
+            _ = node_perturbation_step(model_np, X_batch, y_batch, eta=0.02, sigma=0.2)
 
         # Per-epoch evaluation
         with torch.no_grad():

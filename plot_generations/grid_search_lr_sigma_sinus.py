@@ -13,8 +13,7 @@ from learning_rules_MLP import (
     MLP,
     init_signed_lognormal_weights,
     three_factor_weight_step,
-    three_factor_activation_step,
-    three_factor_activation_step_noisy,
+    node_perturbation_step,
     weight_perturb_step,
     weight_perturb_step_momentum,
     weight_perturb_step_multiplicative,
@@ -91,9 +90,9 @@ def run_single_trial(method, X_train, y_train, eta, sigma, epochs, batch_size, s
             elif method == "wp3":
                 loss = three_factor_weight_step(model, X_batch, y_batch, eta=eta, sigma=sigma)
             elif method == "np":
-                loss = three_factor_activation_step(model, X_batch, y_batch, eta=eta, sigma=sigma)
+                loss = node_perturbation_step(model, X_batch, y_batch, eta=eta, sigma=sigma)
             elif method == "npn":
-                loss = three_factor_activation_step_noisy(model, X_batch, y_batch, eta=eta, sigma=sigma)
+                loss = node_perturbation_step(model, X_batch, y_batch, eta=eta, sigma=sigma)
             elif method == "wp-m":
                 loss, momentum_w, momentum_b = weight_perturb_step_momentum(
                     model, X_batch, y_batch, momentum_w, momentum_b, eta=eta, sigma=sigma
@@ -111,7 +110,7 @@ def run_single_trial(method, X_train, y_train, eta, sigma, epochs, batch_size, s
 
 
 def main():
-    METHOD = "npn"  # options: bp, wp, wp3, np, npn, wp-m, wp-mult
+    METHOD = "wp-mult"  # options: bp, wp, wp3, np, npn, wp-m, wp-mult
     EPOCHS = 400
     BATCH_SIZE = 128
     SEEDS = [0, 1, 2]

@@ -10,14 +10,21 @@ from sklearn.datasets import fetch_california_housing
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from learning_rules_MLP import MLP, backprop_step, node_perturbation_step, weight_perturb_step
+from learning_rules_MLP import (
+    MLP,
+    backprop_step,
+    node_perturbation_step,
+    node_perturbation_step_fixed_sigma,
+    weight_perturb_step,
+)
 
 
-METHODS = ["bp", "np", "wp"]
+METHODS = ["bp", "np", "np_fixed", "wp"]
 PERTURBATION_SIGMA = 0.1
 METHOD_CONFIG = {
     "bp": {"label": "Backprop", "color": "C0", "lr": 0.01, "requires_grad": True},
     "np": {"label": "Node Perturbation", "color": "C1", "lr": 0.01, "requires_grad": False},
+    "np_fixed": {"label": "Node Perturbation Fixed Sigma", "color": "C3", "lr": 0.01, "requires_grad": False},
     "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.0033, "requires_grad": False},
 }
 
@@ -84,6 +91,20 @@ def node_perturbation_gradient_estimate(model, xb, yb, sigma):
     return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
 
 
+def node_perturbation_fixed_sigma_gradient_estimate(model, xb, yb, sigma):
+    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb_fixed_sigma(xb, sigma)
+    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
+
+    weight_grads = []
+    bias_grads = []
+    for x_in, noise, noise_scale in zip(activations, noises, noise_scales):
+        scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
+        weight_grads.append(torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0))
+        bias_grads.append(scaled_noise.mean(dim=0))
+
+    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
+
+
 def weight_perturbation_gradient_estimate(model, xb, yb, sigma):
     layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
     prediction_noisy = layer_outputs[-1]
@@ -116,6 +137,8 @@ def gradient_metrics(model, method, xb, yb):
         estimator_update = true_update
     elif method == "np":
         _, _, estimator_update = node_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
+    elif method == "np_fixed":
+        _, _, estimator_update = node_perturbation_fixed_sigma_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
     elif method == "wp":
         _, _, estimator_update = weight_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
     else:
@@ -158,13 +181,15 @@ def step_method(method, model, optimizer, xb, yb):
         return backprop_step(model, xb, yb, optimizer=optimizer)
     if method == "np":
         return node_perturbation_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
+    if method == "np_fixed":
+        return node_perturbation_step_fixed_sigma(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
     if method == "wp":
         return weight_perturb_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
     raise ValueError(f"Unknown method: {method}")
 
 
 def plot_average_gradient_metrics(cosine_history, variance_history):
-    methods_to_compare = [method for method in METHODS if method in {"np", "wp"}]
+    methods_to_compare = [method for method in METHODS if method in {"np", "np_fixed", "wp"}]
     labels = [METHOD_CONFIG[method]["label"] for method in methods_to_compare]
     colors = [METHOD_CONFIG[method]["color"] for method in methods_to_compare]
     mean_cosines = [sum(cosine_history[method]) / max(len(cosine_history[method]), 1) for method in methods_to_compare]
@@ -183,7 +208,7 @@ def plot_average_gradient_metrics(cosine_history, variance_history):
 
 
 def plot_cosine_distributions(cosine_history):
-    methods_to_compare = [method for method in METHODS if method in {"np", "wp"}]
+    methods_to_compare = [method for method in METHODS if method in {"np", "np_fixed", "wp"}]
     fig, axes = plt.subplots(1, len(methods_to_compare), figsize=(10, 4), sharey=True)
 
     if len(methods_to_compare) == 1:

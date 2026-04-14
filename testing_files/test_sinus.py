@@ -8,15 +8,22 @@ import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
-from learning_rules_MLP import MLP, backprop_step, node_perturbation_step, weight_perturb_step
+from learning_rules_MLP import (
+    MLP,
+    backprop_step,
+    node_perturbation_step,
+    node_perturbation_step_fixed_sigma,
+    weight_perturb_step,
+)
 
 
-METHODS = ["bp", "np", "wp"]
+METHODS = ["bp", "np", "np_fixed", "wp"]
 PERTURBATION_SIGMA = 0.1
 METHOD_CONFIG = {
     "bp": {"label": "Backprop", "color": "C0", "lr": 0.05, "requires_grad": True},
-    "np": {"label": "Node Perturbation", "color": "C1", "lr": 0.02, "requires_grad": False},
-    "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.006, "requires_grad": False},
+    "np": {"label": "Node Perturbation", "color": "C1", "lr": 0.05, "requires_grad": False},
+    "np_fixed": {"label": "Node Perturbation Fixed Sigma", "color": "C3", "lr": 0.025, "requires_grad": False},
+    "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.025, "requires_grad": False},
 }
 AUTO_MATCH_NP_LR_TO_WP = True
 LR_CALIBRATION_BATCHES = 8
@@ -31,6 +38,7 @@ BATCH_SIZE = 64
 EPOCHS = 1000
 METRIC_EVERY = 1
 PRINT_EVERY = 20
+LOSS_PLOT_MAX = 1.0
 
 
 def generate_sinus_data(n_train, n_test, noise_std, seed):
@@ -102,6 +110,20 @@ def node_perturbation_gradient_estimate(model, xb, yb, sigma):
     return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
 
 
+def node_perturbation_fixed_sigma_gradient_estimate(model, xb, yb, sigma):
+    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb_fixed_sigma(xb, sigma)
+    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
+
+    weight_grads = []
+    bias_grads = []
+    for x_in, noise, noise_scale in zip(activations, noises, noise_scales):
+        scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
+        weight_grads.append(torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0))
+        bias_grads.append(scaled_noise.mean(dim=0))
+
+    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
+
+
 def weight_perturbation_gradient_estimate(model, xb, yb, sigma):
     layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
     prediction_noisy = layer_outputs[-1]
@@ -134,6 +156,9 @@ def estimator_update_vector(model, method, xb, yb):
     if method == "np":
         _, _, estimator_update = node_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
         return estimator_update
+    if method == "np_fixed":
+        _, _, estimator_update = node_perturbation_fixed_sigma_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA*2)
+        return estimator_update
     if method == "wp":
         _, _, estimator_update = weight_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
         return estimator_update
@@ -159,15 +184,6 @@ def maybe_calibrate_np_learning_rate(models, x_train, y_train):
     if not AUTO_MATCH_NP_LR_TO_WP:
         return
 
-    np_norm = average_estimator_norm(
-        models["np"],
-        "np",
-        x_train,
-        y_train,
-        batch_size=BATCH_SIZE,
-        num_batches=LR_CALIBRATION_BATCHES,
-        num_draws=LR_CALIBRATION_DRAWS,
-    )
     wp_norm = average_estimator_norm(
         models["wp"],
         "wp",
@@ -178,15 +194,25 @@ def maybe_calibrate_np_learning_rate(models, x_train, y_train):
         num_draws=LR_CALIBRATION_DRAWS,
     )
 
-    old_np_lr = METHOD_CONFIG["np"]["lr"]
-    matched_np_lr = METHOD_CONFIG["wp"]["lr"] * wp_norm / max(np_norm, 1e-12)
-    METHOD_CONFIG["np"]["lr"] = matched_np_lr
+    for method in ("np", "np_fixed"):
+        np_norm = average_estimator_norm(
+            models[method],
+            method,
+            x_train,
+            y_train,
+            batch_size=BATCH_SIZE,
+            num_batches=LR_CALIBRATION_BATCHES,
+            num_draws=LR_CALIBRATION_DRAWS,
+        )
+        old_np_lr = METHOD_CONFIG[method]["lr"]
+        matched_np_lr = METHOD_CONFIG["wp"]["lr"] * wp_norm / max(np_norm, 1e-12)
+        METHOD_CONFIG[method]["lr"] = matched_np_lr
 
-    print(
-        "Calibrated NP learning rate to match WP estimator norm: "
-        f"np_norm={np_norm:.4f}, wp_norm={wp_norm:.4f}, "
-        f"old_np_lr={old_np_lr:.4f}, new_np_lr={matched_np_lr:.4f}"
-    )
+        print(
+            f"Calibrated {method} learning rate to match WP estimator norm: "
+            f"{method}_norm={np_norm:.4f}, wp_norm={wp_norm:.4f}, "
+            f"old_lr={old_np_lr:.4f}, new_lr={matched_np_lr:.4f}"
+        )
 
 
 def gradient_metrics(model, method, xb, yb):
@@ -196,6 +222,8 @@ def gradient_metrics(model, method, xb, yb):
         estimator_update = true_update
     elif method == "np":
         _, _, estimator_update = node_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
+    elif method == "np_fixed":
+        _, _, estimator_update = node_perturbation_fixed_sigma_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA*2)
     elif method == "wp":
         _, _, estimator_update = weight_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
     else:
@@ -241,13 +269,15 @@ def step_method(method, model, optimizer, xb, yb):
         return backprop_step(model, xb, yb, optimizer=optimizer)
     if method == "np":
         return node_perturbation_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
+    if method == "np_fixed":
+        return node_perturbation_step_fixed_sigma(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
     if method == "wp":
         return weight_perturb_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
     raise ValueError(f"Unknown method: {method}")
 
 
 def plot_average_gradient_metrics(cosine_history, variance_history):
-    methods_to_compare = [method for method in METHODS if method in {"np", "wp"}]
+    methods_to_compare = [method for method in METHODS if method in {"np", "np_fixed", "wp"}]
     labels = [METHOD_CONFIG[method]["label"] for method in methods_to_compare]
     colors = [METHOD_CONFIG[method]["color"] for method in methods_to_compare]
     mean_cosines = [sum(cosine_history[method]) / max(len(cosine_history[method]), 1) for method in methods_to_compare]
@@ -266,7 +296,7 @@ def plot_average_gradient_metrics(cosine_history, variance_history):
 
 
 def plot_cosine_distributions(cosine_history):
-    methods_to_compare = [method for method in METHODS if method in {"np", "wp"}]
+    methods_to_compare = [method for method in METHODS if method in {"np", "np_fixed", "wp"}]
     fig, axes = plt.subplots(1, len(methods_to_compare), figsize=(10, 4), sharey=True)
 
     if len(methods_to_compare) == 1:
@@ -354,6 +384,7 @@ def main():
 
     axes[0].set_title("Sinus Regression Loss")
     axes[0].set_ylabel("MSE")
+    axes[0].set_ylim(0.0, LOSS_PLOT_MAX)
     axes[0].legend()
     axes[1].set_title("Cosine Similarity to True Gradient")
     axes[1].set_ylabel("Cosine")
