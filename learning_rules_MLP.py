@@ -165,6 +165,35 @@ class MLP(nn.Module):
 
         return acts, noises, noise_scales, a_noisy
 
+    def forward_node_perturb_fan_in_scaled(self, x, sigma):
+        """
+        Forward pass for node perturbation with isotropic pre-activation noise
+        whose variance scales with the incoming layer size.
+        """
+        acts = [x]
+        noises = []
+        noise_scales = []
+        last = len(self.layers) - 1
+        a_noisy = x
+
+        
+        for i, layer in enumerate(self.layers):
+            z_noisy = layer(a_noisy)
+            eps = torch.randn_like(z_noisy, device=z_noisy.device, dtype=z_noisy.dtype)
+            incoming_width = layer.in_features
+            noise_scale_value = sigma * math.sqrt(incoming_width)
+            noise_scale = torch.full_like(z_noisy, noise_scale_value)
+            noises.append(eps)
+            noise_scales.append(noise_scale)
+            z_noisy = z_noisy + noise_scale * eps
+            if i == last:
+                a_noisy = self.output_activation(z_noisy) if self.output_activation else z_noisy
+            else:
+                a_noisy = self.activation(z_noisy)
+            acts.append(a_noisy)
+
+        return acts, noises, noise_scales, a_noisy
+
 def _mean_loss_per_sample(prediction, target):
     loss = F.mse_loss(prediction, target, reduction='none')
     if loss.dim() > 1:
@@ -178,7 +207,15 @@ def _centered_reward_signal(loss_per_sample):
     return reward - reward_bar
 
 
-def node_perturbation_step(model, X, target, eta=0.5, sigma=0.1):
+def _flatten_parameter_tensors(weight_tensors, bias_tensors):
+    pieces = []
+    for weight_tensor, bias_tensor in zip(weight_tensors, bias_tensors):
+        pieces.append(weight_tensor.reshape(-1))
+        pieces.append(bias_tensor.reshape(-1))
+    return torch.cat(pieces)
+
+
+def node_perturbation_step(model, X, target, eta=0.5, sigma=0.1, return_unscaled_parameter_update_vector=False):
     """
     Node perturbation with a centered reward signal from the noisy forward pass.
     """
@@ -186,20 +223,34 @@ def node_perturbation_step(model, X, target, eta=0.5, sigma=0.1):
     activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb(X, sigma)
     loss_per_sample = _mean_loss_per_sample(prediction_noisy, target)
     scalar_signal = _centered_reward_signal(loss_per_sample)
+    raw_weight_updates = []
+    raw_bias_updates = []
 
     with torch.no_grad():
         for layer, x_in, noise, noise_scale in zip(model.layers, activations, noises, noise_scales):
             scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
-            weight_update = eta * torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
-            bias_update = eta * scaled_noise.mean(dim=0)
+            raw_weight_update = torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
+            raw_bias_update = scaled_noise.mean(dim=0)
+            raw_weight_updates.append(raw_weight_update)
+            raw_bias_updates.append(raw_bias_update)
 
-            layer.weight += weight_update
-            layer.bias += bias_update
+            layer.weight += eta * raw_weight_update
+            layer.bias += eta * raw_bias_update
 
-    return loss_per_sample.mean().item()
+    mean_loss = loss_per_sample.mean().item()
+    if return_unscaled_parameter_update_vector:
+        return mean_loss, _flatten_parameter_tensors(raw_weight_updates, raw_bias_updates)
+    return mean_loss
 
 
-def node_perturbation_step_fixed_sigma(model, X, target, eta=0.5, sigma=0.1):
+def node_perturbation_step_fixed_sigma(
+    model,
+    X,
+    target,
+    eta=0.5,
+    sigma=0.1,
+    return_unscaled_parameter_update_vector=False,
+):
     """
     Node perturbation with a centered reward signal and fixed pre-activation
     noise variance `sigma**2` at every node.
@@ -208,20 +259,63 @@ def node_perturbation_step_fixed_sigma(model, X, target, eta=0.5, sigma=0.1):
     activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb_fixed_sigma(X, sigma)
     loss_per_sample = _mean_loss_per_sample(prediction_noisy, target)
     scalar_signal = _centered_reward_signal(loss_per_sample)
+    raw_weight_updates = []
+    raw_bias_updates = []
 
     with torch.no_grad():
         for layer, x_in, noise, noise_scale in zip(model.layers, activations, noises, noise_scales):
             scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
-            weight_update = eta * torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
-            bias_update = eta * scaled_noise.mean(dim=0)
+            raw_weight_update = torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
+            raw_bias_update = scaled_noise.mean(dim=0)
+            raw_weight_updates.append(raw_weight_update)
+            raw_bias_updates.append(raw_bias_update)
 
-            layer.weight += weight_update
-            layer.bias += bias_update
+            layer.weight += eta * raw_weight_update
+            layer.bias += eta * raw_bias_update
 
-    return loss_per_sample.mean().item()
+    mean_loss = loss_per_sample.mean().item()
+    if return_unscaled_parameter_update_vector:
+        return mean_loss, _flatten_parameter_tensors(raw_weight_updates, raw_bias_updates)
+    return mean_loss
 
 
-def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1):
+def node_perturbation_step_fan_in_scaled(
+    model,
+    X,
+    target,
+    eta=0.5,
+    sigma=0.1,
+    return_unscaled_parameter_update_vector=False,
+):
+    """
+    Node perturbation with a centered reward signal and isotropic
+    pre-activation noise whose variance scales with the incoming layer size.
+    """
+    model.train()
+    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb_fan_in_scaled(X, sigma)
+    loss_per_sample = _mean_loss_per_sample(prediction_noisy, target)
+    scalar_signal = _centered_reward_signal(loss_per_sample)
+    raw_weight_updates = []
+    raw_bias_updates = []
+
+    with torch.no_grad():
+        for layer, x_in, noise, noise_scale in zip(model.layers, activations, noises, noise_scales):
+            scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
+            raw_weight_update = torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0)
+            raw_bias_update = scaled_noise.mean(dim=0)
+            raw_weight_updates.append(raw_weight_update)
+            raw_bias_updates.append(raw_bias_update)
+
+            layer.weight += eta * raw_weight_update
+            layer.bias += eta * raw_bias_update
+
+    mean_loss = loss_per_sample.mean().item()
+    if return_unscaled_parameter_update_vector:
+        return mean_loss, _flatten_parameter_tensors(raw_weight_updates, raw_bias_updates)
+    return mean_loss
+
+
+def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1, return_unscaled_parameter_update_vector=False):
     """
     Weight perturbation with a centered reward signal from the noisy forward pass.
     """
@@ -231,22 +325,29 @@ def weight_perturb_step(model, X, target, eta=0.5, sigma=0.1):
     loss_per_sample = _mean_loss_per_sample(prediction_noisy, target)
     scalar_signal = _centered_reward_signal(loss_per_sample)
     noise_scale = sigma ** 2 + 1e-12
+    raw_weight_updates = []
+    raw_bias_updates = []
 
     with torch.no_grad():
         for layer, (weight_noise, bias_noise) in zip(model.layers, noises):
             scaled_weight_noise = scalar_signal.view(-1, 1, 1) * weight_noise / noise_scale
             scaled_bias_noise = scalar_signal.view(-1, 1) * bias_noise / noise_scale
-            weight_update = eta * scaled_weight_noise.mean(dim=0)
-            bias_update = eta * scaled_bias_noise.mean(dim=0)
+            raw_weight_update = scaled_weight_noise.mean(dim=0)
+            raw_bias_update = scaled_bias_noise.mean(dim=0)
+            raw_weight_updates.append(raw_weight_update)
+            raw_bias_updates.append(raw_bias_update)
 
-            layer.weight += weight_update
-            layer.bias += bias_update
+            layer.weight += eta * raw_weight_update
+            layer.bias += eta * raw_bias_update
 
-    return loss_per_sample.mean().item()
+    mean_loss = loss_per_sample.mean().item()
+    if return_unscaled_parameter_update_vector:
+        return mean_loss, _flatten_parameter_tensors(raw_weight_updates, raw_bias_updates)
+    return mean_loss
 
 
 
-def backprop_step(model, X, target, optimizer, loss_fn=F.mse_loss):
+def backprop_step(model, X, target, optimizer, loss_fn=F.mse_loss, return_unscaled_parameter_update_vector=False):
     model.train()
     for p in model.parameters():
         p.requires_grad_(True)
@@ -255,6 +356,10 @@ def backprop_step(model, X, target, optimizer, loss_fn=F.mse_loss):
     y_pred = model(X)
     loss = loss_fn(y_pred, target, reduction='mean')
     loss.backward()
+    weight_grads = [layer.weight.grad.detach().clone() for layer in model.layers]
+    bias_grads = [layer.bias.grad.detach().clone() for layer in model.layers]
     optimizer.step()
 
+    if return_unscaled_parameter_update_vector:
+        return loss.item(), -_flatten_parameter_tensors(weight_grads, bias_grads)
     return loss.item()
