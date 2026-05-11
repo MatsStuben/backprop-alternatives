@@ -168,7 +168,7 @@ class MLP(nn.Module):
     def forward_node_perturb_fan_in_scaled(self, x, sigma):
         """
         Forward pass for node perturbation with isotropic pre-activation noise
-        whose variance scales with the incoming layer size.
+        whose variance scales with the incoming layer size, including bias.
         """
         acts = [x]
         noises = []
@@ -180,8 +180,8 @@ class MLP(nn.Module):
         for i, layer in enumerate(self.layers):
             z_noisy = layer(a_noisy)
             eps = torch.randn_like(z_noisy, device=z_noisy.device, dtype=z_noisy.dtype)
-            incoming_width = layer.in_features
-            noise_scale_value = sigma * math.sqrt(incoming_width)
+            fan_in_with_bias = layer.in_features + 1
+            noise_scale_value = sigma * math.sqrt(fan_in_with_bias)
             noise_scale = torch.full_like(z_noisy, noise_scale_value)
             noises.append(eps)
             noise_scales.append(noise_scale)
