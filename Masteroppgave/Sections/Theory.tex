@@ -1,0 +1,391 @@
+\section{Theory}
+
+\subsection{How the brain learns}
+\subsubsection{Hebbian Learning}
+\subsubsection{Neuromodulators and global feedback}
+
+\subsection{Learning in artifical neural networks}
+\subsubsection{Supervised learning}
+\subsubsection{Backpropagation}
+\subsubsection{Biologically plausible alternatives to backpropagation}
+Move the method section of weight perturbation and node perturbation here. Give FA and FF (or some other methods) a relatively short and compact introduction, explain how they work, why they are biologically plausible, and how well they work. Do the same for perturbation methods, then conclude that in this thesis, we are going to focus on perturbation methods. Then introduce wp and standard np. Then the noise-induced version of np will be presented in the theory section.
+
+\begin{itemize}
+    \item Feedback Alignment
+    \item Forward Forward
+    \item STDP
+    \item Perturbation methods
+\end{itemize}
+
+Table~\ref{tab:np_update_rules} compares the learning rules used in different perturbation-based methods. The table shows where noise is added, how the noise is sampled, and how the weights are updated. We use \(\sigma\) for the noise size in all papers, even when the original paper uses another symbol. We use \(\Delta \ell\) to denote the scalar global learning signal, typically computed from the difference between noisy and unperturbed performance, although the exact estimator varies between papers.
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\caption{Comparison of perturbation noise sampling in the literature.}
+\label{tab:np_update_rules}
+
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{2.2cm}
+    >{\raggedright\arraybackslash}p{4.0cm}
+    >{\raggedright\arraybackslash}p{2.1cm}
+    >{\centering\arraybackslash}p{3.0cm}
+    >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Reference} &
+\textbf{Method(s)} &
+\textbf{Perturbed variable} &
+\textbf{Noise sampling} &
+\textbf{Notes} \\
+\midrule
+
+\cite{hiratani2022stability}
+& Node perturbation; weight-normalized node perturbation
+& Pre-activation
+& \(\sigma \xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
+& Weight-normalized version renormalizes incoming weights. \\
+
+\addlinespace
+
+\cite{dalm2024effective}
+& Node perturbation; iterative node perturbation; activity-based node perturbation
+& Pre-activation
+& \(\xi_l \sim \mathcal{N}(0,\sigma^2 I_l)\)
+& Decorrelated versions exist, they use the same distribution. \\
+
+\cite{flower1992summed}
+& Neuron perturbation; weight perturbation; summed weight neuron perturbation
+& Weight / pre-activation
+& \(\epsilon_i,\epsilon_{ij} \in \{-\sigma,\sigma\}\)
+& Random-polarity finite-difference perturbations. \\
+
+\cite{widrow1990thirty}
+& Madaline Rule III
+& Pre-activation
+& Small perturbation \(\epsilon_i\); no distribution specified
+& Early finite-difference neuron perturbation. \\
+
+\cite{cauwenberghs1993fast}
+& Stochastic error descent
+& Weights
+& \(\mathbb{E}[\epsilon_i\epsilon_j]=\sigma^2\delta_{ij}\)
+& Any zero-mean, uncorrelated perturbations with equal variance; simulations use \(\epsilon_i=\sigma z_i,\; z_i\sim\mathrm{Unif}\{-1,1\}\). \\
+
+\cite{werfel2005learning}
+& Node perturbation; weight perturbation
+& Output / weight
+& NP: \(\boldsymbol{\epsilon} \sim \mathcal{N}(0,N\sigma^2 I_M)\);
+WP: \(\boldsymbol{\epsilon} \sim \mathcal{N}(0,\sigma^2 I_{MN})\)
+& Node noise scaled by \(\sqrt{N}\) to match the output noise induced by weight perturbation. \\
+
+\cite{zuge2023weight}
+& Weight perturbation; node perturbation
+& Weight / pre-activation
+& WP: \(\epsilon_{ij}^{\mathrm{WP}} \sim
+\mathcal{N}\!\left(0,\frac{\sigma_{\mathrm{eff}}^2}{\alpha^2 N_{\mathrm{eff}}}\right)\);
+NP: \(\epsilon_{it}^{\mathrm{NP}} \sim
+\mathcal{N}(0,\sigma_{\mathrm{eff}}^2)\)
+& WP variance matched to NP output variance. \(N_{\mathrm{eff}}\): effective input dimension. \(a\): error convergence factor. \\
+
+\cite{cho2011node}
+& Node perturbation; noisy-baseline node perturbation
+& Output
+& \(\epsilon_i \sim \mathcal{N}(0,\sigma_\epsilon^2)\),
+\(\zeta_i \sim \mathcal{N}(0,\sigma_\zeta^2)\)
+& Second perturbation replaces noiseless baseline; no layer-size scaling. \\
+
+\addlinespace
+
+\cite{hara2017statistical}
+& Single node perturbation; double node perturbation
+& Output
+& \(\epsilon_k \sim \mathcal{N}(0,\sigma_\epsilon^2)\),
+\(\zeta_k \sim \mathcal{N}(0,\sigma_\zeta^2)\)
+& Statistical-mechanics analysis of noisy-baseline NP; no layer-size scaling. \\
+
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+For compactness, let \(U_k\) denote the update direction, so that weights are updated as
+\(W_k \leftarrow W_k - \eta_W U_k\). For decorrelated variants, \(x_{k-1}^{\star}=R_{k-1}x_{k-1}\), and the decorrelation matrix is updated using
+\(R_k \leftarrow R_k-\eta_R\left(x_k^\star (x_k^\star)^\top-\operatorname{diag}((x_k^\star)^2)\right)R_k\).
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\caption{Comparison of perturbation-based update rules in the literature.}
+\label{tab:np_update_rules_full}
+
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{1.9cm}
+    >{\raggedright\arraybackslash}p{2.6cm}
+    >{\raggedright\arraybackslash}p{1.6cm}
+    >{\centering\arraybackslash}p{2.5cm}
+    >{\raggedright\arraybackslash}X
+}
+\toprule
+\textbf{Reference} &
+\textbf{Method} &
+\textbf{Perturbed variable} &
+\textbf{Noise sampling} &
+\textbf{Update rule} \\
+\midrule
+
+\cite{hiratani2022stability}
+& Node perturbation
+& Pre-activation
+& \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
+& \(U_k =
+\frac{\Delta \ell}{\sigma}
+\xi_k x_{k-1}^{\top}\) \\
+
+\addlinespace
+
+\cite{hiratani2022stability}
+& Weight-normalized node perturbation
+& Pre-activation
+& \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
+& \(U_k =
+\frac{\Delta \ell}{\sigma}
+\xi_k x_{k-1}^{\top}\),
+\quad
+\(w_i^k \leftarrow
+\frac{\|w_i^k\|}
+{\|w_i^k-\eta_W u_i^k\|}
+(w_i^k-\eta_W u_i^k)\) \\
+
+\addlinespace
+\midrule
+\addlinespace
+
+\cite{dalm2024effective}
+& Node perturbation
+& Pre-activation
+& \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
+& \(U_k =
+\frac{\Delta \ell}{\sigma}
+\xi_k x_{k-1}^{\top}\) \\
+
+\addlinespace
+
+\cite{dalm2024effective}
+& Iterative node perturbation
+& Pre-activation
+& \(v_k \sim \mathcal{N}(0,I_k)\), perturbation \(h v_k\)
+& \(U_k =
+\sqrt{N_k}\Delta \ell
+\frac{v_k}{\|v\|_2^2}
+x_{k-1}^{\top}\) \\
+
+\addlinespace
+
+\cite{dalm2024effective}
+& Activity-based node perturbation
+& Pre-activation
+& \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
+& \(U_k =
+\sqrt{N}\Delta \ell
+\frac{\delta a_k}{\|\delta a\|_2^2}
+x_{k-1}^{\top}\) \\
+
+\addlinespace
+
+\cite{dalm2024effective}
+& Decorrelated node perturbation
+& Pre-activation
+& \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
+& \(U_k =
+\frac{\Delta \ell}{\sigma}
+\xi_k (x_{k-1}^{\star})^{\top}\) \\
+
+\addlinespace
+
+\cite{dalm2024effective}
+& Decorrelated iterative node perturbation
+& Pre-activation
+& \(v_k \sim \mathcal{N}(0,I_k)\), perturbation \(h v_k\)
+& \(U_k =
+\sqrt{N_k}\Delta \ell
+\frac{v_k}{\|v\|_2^2}
+(x_{k-1}^{\star})^{\top}\) \\
+
+\addlinespace
+
+\cite{dalm2024effective}
+& Decorrelated activity-based node perturbation
+& Pre-activation
+& \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
+& \(U_k =
+\sqrt{N}\Delta \ell
+\frac{\delta a_k}{\|\delta a\|_2^2}
+(x_{k-1}^{\star})^{\top}\) \\
+
+\addlinespace
+\midrule
+\addlinespace
+
+\cite{flower1992summed}
+& Neuron perturbation
+& Pre-activation
+& \(\epsilon_i = \sigma z_i,\; z_i \sim \mathrm{Unif}\{-1,1\}\)
+& \(U_{ij}
+=
+\frac{\Delta \ell}{\epsilon_i}
+x_j\) \\
+
+\addlinespace
+
+\cite{flower1992summed}
+& Weight perturbation
+& Weight
+& \(\epsilon_{ij} = \sigma z_{ij},\; z_{ij} \sim \mathrm{Unif}\{-1,1\}\)
+& \(U_{ij}
+=
+\frac{\Delta \ell}{\epsilon_{ij}}\) \\
+
+\addlinespace
+
+\cite{flower1992summed}
+& Summed weight neuron perturbation
+& Incoming weights
+& \(\epsilon_{ij} = \sigma z_{ij},\; z_{ij} \sim \mathrm{Unif}\{-1,1\}\)
+& \(U_{ij}
+=
+\frac{\Delta \ell}{\epsilon_{ij}},
+\quad
+r_i = \sum_m \epsilon_{im}x_m\) \\
+
+\addlinespace
+\midrule
+\addlinespace
+
+\cite{widrow1990thirty}
+& Madaline Rule III
+& Pre-activation
+& Small perturbation \(\epsilon_i\); no distribution specified
+& \(U_{ij} =
+\frac{\Delta \ell}{\epsilon_i}
+x_j\) \\
+
+\addlinespace
+\midrule
+\addlinespace
+
+\cite{cauwenberghs1993fast}
+& Stochastic error descent
+& Weights
+& \(\mathbb{E}[\epsilon_i\epsilon_j]=\sigma^2\delta_{ij}\)
+& \(U =
+\Delta \ell\,
+\boldsymbol{\epsilon}\) \\
+\addlinespace
+\midrule
+\addlinespace
+
+\cite{werfel2005learning}
+& Node perturbation
+& Output
+& \(\boldsymbol{\epsilon} \sim \mathcal{N}(0,N\sigma^2 I_M)\)
+& \(U =
+\frac{\Delta \ell}{N\sigma^2}
+\boldsymbol{\epsilon} \mathbf{x}^{\top}\) \\
+
+\addlinespace
+
+\cite{werfel2005learning}
+& Weight perturbation
+& Weight
+& \(\boldsymbol{\epsilon} \sim \mathcal{N}(0,\sigma^2 I_{MN})\)
+& \(U =
+\frac{\Delta \ell}{\sigma^2}
+\boldsymbol{\epsilon}\) \\
+
+\addlinespace
+\midrule
+\addlinespace
+
+\cite{zuge2023weight}
+& Weight perturbation
+& Weight
+& \(\epsilon_{ij}^{\mathrm{WP}} \sim
+\mathcal{N}\!\left(0,\frac{\sigma_{\mathrm{eff}}^2}{\alpha^2 N_{\mathrm{eff}}}\right)\)
+& \(U_{ij} =
+\frac{\Delta L}{\sigma_{\mathrm{WP}}^2}
+\epsilon_{ij}^{\mathrm{WP}}\),
+\quad
+\(\sigma_{\mathrm{WP}}^2 =
+\frac{\sigma_{\mathrm{eff}}^2}{\alpha^2N_{\mathrm{eff}}}\) \\
+
+\addlinespace
+
+\cite{zuge2023weight}
+& Node perturbation
+& Pre-activation
+& \(\epsilon_{it}^{\mathrm{NP}} \sim
+\mathcal{N}(0,\sigma_{\mathrm{eff}}^2)\)
+& \(U_{ij} =
+\frac{\Delta L}{\sigma_{\mathrm{eff}}^2}
+\sum_{t=1}^{T}
+\epsilon_{it}^{\mathrm{NP}} x_{jt}\) \\
+
+\addlinespace
+\midrule
+\addlinespace
+\cite{cho2011node}
+& Node perturbation
+& Output
+& \(\epsilon_i \sim \mathcal{N}(0,\sigma_\epsilon^2)\)
+& \(U_{ij} =
+\Delta L\,
+\epsilon_i x_j\) \\
+
+\addlinespace
+
+\cite{cho2011node}
+& Noisy-baseline node perturbation
+& Output
+& \(\epsilon_i \sim \mathcal{N}(0,\sigma_\epsilon^2)\),
+\(\zeta_i \sim \mathcal{N}(0,\sigma_\zeta^2)\)
+& \(U_{ij} =
+\Delta L\,
+\epsilon_i x_j\),
+\quad
+\(\Delta L = L_\epsilon - L_\zeta\) \\
+
+\addlinespace
+\midrule
+\addlinespace
+
+\cite{hara2017statistical}
+& Single node perturbation
+& Output
+& \(\epsilon_k \sim \mathcal{N}(0,\sigma_\epsilon^2)\)
+& \(U_{jk} =
+\frac{\Delta L}{N\sigma_\epsilon^2}
+\epsilon_k x_j\),
+\quad
+\(\Delta L = L_\epsilon - L\) \\
+
+\addlinespace
+
+\cite{hara2017statistical}
+& Double node perturbation
+& Output
+& \(\epsilon_k \sim \mathcal{N}(0,\sigma_\epsilon^2)\),
+\(\zeta_k \sim \mathcal{N}(0,\sigma_\zeta^2)\)
+& \(U_{jk} =
+\frac{\Delta L}{N\sigma_\epsilon^2}
+\epsilon_k x_j\),
+\quad
+\(\Delta L = L_\epsilon - L_\zeta\) \\
+
+\addlinespace
+\midrule
+\addlinespace
+
+\bottomrule
+\end{tabularx}
+\end{table}

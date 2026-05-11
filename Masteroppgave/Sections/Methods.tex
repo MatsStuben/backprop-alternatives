@@ -1,0 +1,874 @@
+\section{Method}
+
+\subsection{Weight Perturbation}
+
+\subsubsection{Definition and Derivation}
+
+Perturbation-based learning provides a simple alternative to backpropagation by estimating gradients using only forward evaluations of the network. Instead of explicitly computing derivatives, the idea is to introduce small random perturbations to the parameters and observe how these perturbations affect the loss. If a perturbation leads to a decrease in loss, then moving the parameters in that direction is beneficial; if it increases the loss, the direction is unfavorable. By correlating random perturbations with the resulting change in loss, one can construct a stochastic estimate of the gradient.
+
+To formalize this perturbation-based approach, we model the network parameters as noisy rather than fixed. Let
+$\boldsymbol{\mu}$ denote the deterministic parameter vector that we seek to optimize, and define
+perturbed parameters by
+\[
+\boldsymbol{\theta} \sim \mathcal{N}(\boldsymbol{\mu}, \sigma^2 \mathbf{I}),
+\]
+where $\sigma > 0$ is a small fixed perturbation scale. Rather than optimizing the deterministic loss $L(\boldsymbol{\mu})$ directly, we consider the expected loss under parameter perturbations,
+\begin{equation}
+F(\boldsymbol{\mu}) := \mathbb{E}_{\boldsymbol{\theta} \sim p_{\boldsymbol{\mu}}}
+\!\left[L(\boldsymbol{\theta})\right],
+\label{eq:smoothed_objective}
+\end{equation}
+where $p_{\boldsymbol{\mu}}(\boldsymbol{\theta}) = \mathcal{N}(\boldsymbol{\mu}, \sigma^2 \mathbf{I})$.
+We now seek to construct an estimator of the gradient of this objective. As we will show, it is possible to obtain an unbiased estimate of $\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})$ using only forward evaluations of the network. For sufficiently small $\sigma$, this gradient closely approximates the gradient of the original loss $L(\boldsymbol{\mu})$.
+
+To compute $\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})$, we write the expectation explicitly as
+\[
+F(\boldsymbol{\mu})
+=
+\int L(\boldsymbol{\theta})\, p_{\boldsymbol{\mu}}(\boldsymbol{\theta})\, d\boldsymbol{\theta},
+\]
+
+and differentiate under the integral sign:
+\[
+\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})
+=
+\int L(\boldsymbol{\theta})\, \nabla_{\boldsymbol{\mu}} p_{\boldsymbol{\mu}}(\boldsymbol{\theta})\, d\boldsymbol{\theta}.
+\]
+This step is valid under standard regularity conditions, and allows us to make the dependence on $\boldsymbol{\mu}$ explicit inside the integral. Following the score-function estimator~\parencite{Williams1992}, we use the identity
+\[
+\nabla_{\boldsymbol{\mu}} p_{\boldsymbol{\mu}}(\boldsymbol{\theta})
+=
+p_{\boldsymbol{\mu}}(\boldsymbol{\theta})\, \nabla_{\boldsymbol{\mu}} \log p_{\boldsymbol{\mu}}(\boldsymbol{\theta}),
+\]
+which yields
+\begin{equation}
+\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})
+=
+\mathbb{E}_{\boldsymbol{\theta} \sim p_{\boldsymbol{\mu}}}
+\!\left[
+L(\boldsymbol{\theta})\, \nabla_{\boldsymbol{\mu}} \log p_{\boldsymbol{\mu}}(\boldsymbol{\theta})
+\right].
+\label{eq:score_function_nn}
+\end{equation}
+This expression rewrites the gradient of an expectation as an expectation involving the score function $\nabla_{\boldsymbol{\mu}} \log p_{\boldsymbol{\mu}}(\boldsymbol{\theta})$, enabling gradient estimation using Monte Carlo sampling.
+
+For the Gaussian distribution $p_{\boldsymbol{\mu}}(\boldsymbol{\theta}) = \mathcal{N}(\boldsymbol{\mu}, \sigma^2 \mathbf{I})$,
+the log-density is given by
+\[
+\log p_{\boldsymbol{\mu}}(\boldsymbol{\theta})
+=
+-\frac{1}{2\sigma^2}\|\boldsymbol{\theta} - \boldsymbol{\mu}\|^2 + C,
+\]
+and its gradient is
+\[
+\nabla_{\boldsymbol{\mu}} \log p_{\boldsymbol{\mu}}(\boldsymbol{\theta})
+=
+\frac{\boldsymbol{\theta} - \boldsymbol{\mu}}{\sigma^2}.
+\]
+Substituting into \eqref{eq:score_function_nn} yields
+\[
+\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})
+=
+\mathbb{E}
+\!\left[
+L(\boldsymbol{\theta})\, \frac{\boldsymbol{\theta} - \boldsymbol{\mu}}{\sigma^2}
+\right].
+\]
+Using the reparameterization $\boldsymbol{\theta} = \boldsymbol{\mu} + \sigma \boldsymbol{\xi}$, we obtain
+\begin{equation}
+\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})
+=
+\mathbb{E}
+\!\left[
+L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi})\, \frac{\boldsymbol{\xi}}{\sigma}
+\right].
+\label{eq:wp_expectation}
+\end{equation}
+
+In practice, the expectation in \eqref{eq:wp_expectation} cannot be computed exactly, as it requires integrating over all possible perturbations. Instead, we approximate it using Monte Carlo sampling, which allows us to estimate the gradient using only forward evaluations of the network. For a single sample $\boldsymbol{\xi}$, this yields the estimator
+\[
+\widehat{g}_i
+=
+L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi})\, \frac{\xi_i}{\sigma}.
+\]
+
+To reduce the variance of this estimator, we subtract a baseline $b$ that does not depend on the individual perturbation $\xi_i$. The estimator remains unbiased, since
+\[
+\mathbb{E}\!\left[b \frac{\xi_i}{\sigma}\right] = 0,
+\]
+as $\xi_i$ has zero mean and $b$ is independent of $\xi_i$. In particular, we use a leave-one-out baseline, where for the $k$-th perturbation we define
+\[
+b^{(k)} = \frac{1}{N-1}\sum_{k' \neq k} L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}^{(k')}).
+\]
+
+Intuitively, the baseline centers the learning signal: perturbations that lead to lower-than-average loss reinforce their contribution, while those that perform worse than average are reversed. This reduces variance in the gradient estimate without affecting its expectation.
+ The resulting estimator becomes
+\begin{equation}
+\widehat{g}_i
+=
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)\frac{\xi_i}{\sigma}.
+\label{eq:wp_estimator}
+\end{equation}
+
+Applying gradient descent, we update the parameters in the negative gradient direction:
+\begin{equation}
+\Delta \mu_i
+=
+-\eta
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)\frac{\xi_i}{\sigma},
+\label{eq:wp_update}
+\end{equation}
+where $\eta$ is the learning rate. This corresponds to the weight perturbation update rule. This update rule constitutes an unbiased Monte Carlo estimator of the gradient of the expected loss, implying that its expected update direction coincides with the true backpropagation gradient, although potentially with high variance.
+
+
+A third contribution concerns the choice of baseline in perturbation-based learning. In the literature considered here, baseline subtraction is typically implemented using an additional forward pass. Standard WP/NP methods often subtract the loss from a noiseless forward pass~\parencite{werfel2005learning,hiratani2022stability,dalm2024effective,zuge2023weight}, while noisy-baseline variants subtract the loss from a second independently perturbed forward pass~\parencite{cho2011node,hara2017statistical}. Both approaches require evaluating an additional baseline trajectory. However, REINFORCE-style estimators remain unbiased when subtracting any baseline that is independent of the current perturbation~\parencite{Williams1992}. We therefore replace the extra baseline forward pass with a leave-one-out batch baseline. For the \(k\)-th perturbation sample, we define
+\[
+b^{(k)}
+=
+\frac{1}{K-1}\sum_{m\neq k}
+L(\boldsymbol{\mu}+\sigma\boldsymbol{\xi}^{(m)}),
+\]
+which is independent of \(\boldsymbol{\xi}^{(k)}\). Hence,
+\[
+\mathbb{E}\!\left[
+b^{(k)}\frac{\xi_i^{(k)}}{\sigma}
+\right]=0,
+\]
+so the estimator remains unbiased. Intuitively, this baseline centers the learning signal using the average performance of the other perturbations in the same batch: perturbations with lower-than-average loss are reinforced, while perturbations with higher-than-average loss are reversed. When the perturbation batch is large, this leave-one-out mean should provide a reasonable estimate of the expected perturbed loss, and may behave similarly to a separate baseline evaluation while avoiding its additional forward-pass cost. This makes the method computationally attractive, especially when many perturbations are already evaluated in parallel. However, this argument does not prove that the leave-one-out baseline is always better than a noiseless or independently perturbed baseline. Its practical usefulness therefore needs to be validated empirically, by comparing estimator variance, cosine similarity, and training performance against the standard baseline choices.
+
+
+\subsubsection{Induced pre-activation noise}
+
+To understand how the weight perturbation update affects the network, we examine how perturbations at the level of the weights induce noise in the pre-activations. Recall that in the previous section, we modeled the parameters as $\boldsymbol{\theta} \sim \mathcal{N}(\boldsymbol{\mu}, \sigma^2 \mathbf{I})$. For neural networks, this corresponds to perturbing each weight independently as
+\[
+\mathbf{W}^{\ell\prime} = \mathbf{W}^\ell + \sigma \mathbf{E}^\ell,
+\qquad
+E^\ell_{ij} \sim \mathcal{N}(0,1)\ \text{i.i.d.}
+\]
+
+
+The pre-activation at neuron $j$ in layer $\ell$ is given by
+\[
+z^\ell_j = \sum_i W^\ell_{ij} x^{\ell-1}_i.
+\]
+After perturbation, this becomes
+
+\[
+z^{\ell\prime}_j =
+\sum_i W^{\ell\prime}_{ij} x^{\ell-1\prime}_i
+=
+\sum_i (W^\ell_{ij} + \sigma E^\ell_{ij}) \, x^{\ell-1\prime}_i
+\]
+This expression separates into a deterministic component and a stochastic component induced by the weight perturbations:
+\[
+z^{\ell\prime}_j
+=
+\sum_i W^\ell_{ij} x^{\ell-1\prime}_i
++
+\sigma \sum_i E^\ell_{ij} x^{\ell-1\prime}_i.
+\]
+
+Define the induced pre-activation noise as
+\begin{equation}
+n^\ell_j := \sigma \sum_i E^\ell_{ij} x^{\ell-1\prime}_i.
+\label{eq:preact_noise}
+\end{equation}
+
+We can now write the full pre-activation in compact form as
+\[
+z^{\ell\prime}_j = (\mathbf{W}^\ell \mathbf{x}^{\ell-1\prime})_j + n^\ell_j,
+\]
+where 
+
+\[
+(\mathbf{W}^\ell \mathbf{x}^{\ell-1\prime})_j = \sum_i W^\ell_{ij} x^{\ell-1\prime}_i.
+\]
+Now condition on the incoming perturbed activations $\mathbf{x}^{\ell-1\prime}$. Under this conditioning, the coefficients $x^{\ell-1\prime}_i$ are fixed, while $E^\ell_{ij}$ remain independent standard Gaussians. From \eqref{eq:preact_noise}, it follows that $n^\ell_j$ is a linear combination of independent Gaussian variables, and therefore Gaussian with
+\begin{equation}
+n^\ell_j \mid \mathbf{x}^{\ell-1\prime}
+\sim
+\mathcal{N}\!\left(0,\sigma^2 \sum_i (x^{\ell-1\prime}_i)^2\right)
+=
+\mathcal{N}\!\left(0,\sigma^2 \|\mathbf{x}^{\ell-1\prime}\|^2\right).
+\label{eq:preact_noise_dist}
+\end{equation}
+
+Thus, weight perturbation induces Gaussian noise at the pre-activations, with variance proportional to the squared norm of the incoming activations. In other words, the effect of perturbing the weights can be fully characterized as injecting structured Gaussian noise directly into the pre-activations.
+
+\subsection{Standard Node perturbation}
+
+Werfel et al.~\parencite{werfel2005learning} analytically show, for a single-layer linear perceptron, that node perturbation can achieve a faster optimal learning curve than weight perturbation, with the difference explained by the lower dimensionality of the perturbation space: WP explores the \(MN\)-dimensional weight space, whereas NP explores the \(M\)-dimensional output space. This dimensionality intuition is often used to motivate NP more generally, but the original result is specific to a linear teacher-student setting. Moreover, the comparison is not fully settled: Z{\"u}ge et al.~\parencite{zuge2023weight} show that in temporally extended, low-dimensional tasks, WP can perform similarly to or better than NP because WP-induced output perturbations are constrained to the realizable output subspace, while standard NP injects arbitrary time-dependent node noise. This motivates a more direct variance-based comparison between WP and NP in standard feedforward MLPs. Closely related results exist in other settings: Ren et al.~\parencite{ren2023scaling} show that activity-perturbed forward-gradient estimators have lower variance than weight-perturbed forward-gradient estimators, and the local reparameterization trick of Kingma et al.~\parencite{Kingma2015} shows that sampling induced activation noise instead of weight noise can reduce stochastic gradient variance. Inspired by this perspective, we derive the pre-activation noise distribution induced by Gaussian weight perturbations and define an induced-noise node perturbation estimator. We then show that this estimator is the conditional expectation of the corresponding WP estimator given the induced pre-activation noise. By the law of total variance, the induced-noise NP estimator therefore has variance no larger than WP, and strictly lower variance whenever the conditional variance of the WP estimator is nonzero.
+\subsection{Induced-Noise Node perturbation}
+
+
+Instead of introducing noise at the level of the weights, a more common approach is to inject perturbations directly at the pre-activations. In its simplest form, node perturbation considers
+\[
+z^{\ell\prime}_j = z^\ell_j + \epsilon^\ell_j,
+\qquad
+\epsilon^\ell_j \sim \mathcal{N}(0, \sigma^2),
+\]
+and constructs a gradient estimate based on the resulting change in loss~\parencite{hiratani2022stability}.
+
+However, since the goal is to estimate gradients with respect to the weights, the choice of perturbation distribution at the pre-activations is not arbitrary. In particular, it should be consistent with the perturbations induced by weight perturbation, which defines the underlying smoothed objective. As shown in the previous section, Gaussian weight perturbations induce structured Gaussian noise at the pre-activations, with variance depending on the norm of the incoming activations. We therefore define node perturbation using this induced distribution, ensuring that the resulting estimator coincides with weight perturbation in expectation.
+
+\[
+z^{\ell\prime} = W^\ell x^{\ell-1\prime} + n^\ell,
+\qquad
+n^\ell_j \mid x^{\ell-1\prime}
+\sim
+\mathcal{N}\!\left(0,\sigma^2 \|x^{\ell-1\prime}\|^2\right).
+\]
+
+We first consider the effect of this perturbation at the level of the pre-activations. The resulting gradient estimate with respect to $z^\ell_j$ is given by
+\[
+\widehat{g}_{z^\ell_j}
+=
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)
+\frac{n^\ell_j}{\sigma^2 \|x^{\ell-1\prime}\|^2}.
+\]
+
+Using the chain rule,
+\[
+\frac{\partial z^\ell_j}{\partial W^\ell_{ij}} = x^{\ell-1\prime}_i,
+\]
+we obtain the corresponding estimator for the weights:
+\begin{equation}
+\widehat{g}_{ij,\ell}
+=
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)
+\frac{n^\ell_j x^{\ell-1\prime}_i}{\sigma^2 \|x^{\ell-1\prime}\|^2}.
+\label{eq:np_estimator}
+\end{equation}
+
+Applying gradient descent, the update rule becomes
+\begin{equation}
+\Delta W^\ell_{ij}
+=
+-\eta
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)
+\frac{n^\ell_j x^{\ell-1\prime}_i}{\sigma^2 \|x^{\ell-1\prime}\|^2}.
+\label{eq:np_update}
+\end{equation}
+
+Intuitively, node perturbation injects noise at the pre-activations with variance scaled by the magnitude of the incoming activations, ensuring that the resulting perturbations match those induced by weight perturbation. The resulting learning signal is then distributed across the incoming weights proportionally to their contribution to the pre-activation, such that larger inputs receive a larger share of the update.
+
+As in the case of weight perturbation, this estimator is unbiased for the gradient of the same smoothed objective, and the two methods coincide in expectation. This raises a natural question: if the estimators are equivalent in expectation, how do they differ in terms of variance?
+
+
+\subsubsection{INP as a noise-reduced version of WP}
+
+We now analyze the variance of the two estimators. A common intuition in the literature is that node perturbation should exhibit lower variance than weight perturbation, as it introduces fewer stochastic degrees of freedom by perturbing at the level of the nodes rather than the individual weights. In the setting considered here, where node perturbation is defined to match weight perturbation in expectation, this intuition can be made precise. In particular, we show that the node perturbation estimator arises as the conditional expectation of the weight perturbation estimator, yielding a variance reduction via the law of total variance.
+
+\begin{proof}
+We consider the weight perturbation estimator in \eqref{eq:wp_estimator}, and analyze its variance by conditioning on the induced pre-activation noise. Recall from \eqref{eq:preact_noise} that $n^\ell_j$ is a linear combination of the weight perturbations.
+
+Condition on the full induced noise field $N=(n^1,\dots,n^L)$. Since the perturbed forward pass satisfies
+\[
+z^{\ell\prime} = W^\ell x^{\ell-1\prime} + n^\ell,
+\]
+the entire perturbed trajectory $(x^{1\prime},\dots,x^{L\prime})$ is uniquely determined by $N$. Hence both the learning signal $\delta L(N)$ and all activations $x^{\ell\prime}$ are deterministic given $N$.
+
+Now fix $(i,j,\ell)$. From \eqref{eq:preact_noise}, and since $E^\ell_{\cdot j}$ is Gaussian, standard Gaussian regression gives
+\[
+\mathbb{E}[E^\ell_{ij}\mid N]
+=
+\frac{x^{\ell-1\prime}_i}{\sigma \|x^{\ell-1\prime}\|^2}\, n^\ell_j.
+\]
+Therefore,
+\[
+\mathbb{E}[g^{\mathrm{WP}}_{ij,\ell}\mid N]
+=
+-\frac{\delta L(N)}{\sigma}\,
+\mathbb{E}[E^\ell_{ij}\mid N]
+=
+-\delta L(N)\,
+\frac{n^\ell_j x^{\ell-1\prime}_i}{\sigma^2 \|x^{\ell-1\prime}\|^2}
+=
+g^{\mathrm{NP}}_{ij,\ell}.
+\]
+
+Applying the law of total variance,
+\[
+\mathrm{Var}(g^{\mathrm{WP}}_{ij,\ell})
+=
+\mathrm{Var}\!\bigl(\mathbb{E}[g^{\mathrm{WP}}_{ij,\ell}\mid N]\bigr)
++
+\mathbb{E}\!\bigl[\mathrm{Var}(g^{\mathrm{WP}}_{ij,\ell}\mid N)\bigr].
+\]
+Using the identity above,
+\[
+\mathrm{Var}(g^{\mathrm{WP}}_{ij,\ell})
+=
+\mathrm{Var}(g^{\mathrm{NP}}_{ij,\ell})
++
+\mathbb{E}\!\bigl[\mathrm{Var}(g^{\mathrm{WP}}_{ij,\ell}\mid N)\bigr].
+\]
+Since the second term is nonnegative, it follows that
+\[
+\mathrm{Var}(g^{\mathrm{NP}}_{ij,\ell})
+\le
+\mathrm{Var}(g^{\mathrm{WP}}_{ij,\ell}).
+\qedhere
+\]
+\end{proof}
+
+This can be understood intuitively by considering the effect of conditioning on the pre-activation noise. Once the pre-activation noise $n^\ell_j$ is fixed, the entire forward pass, and thus the learning signal $\delta L(N)$, is fixed, making the NP update fully determined. In contrast, many different weight-noise realizations $E^\ell_{\cdot j}$ can produce the same $n^\ell_j$ (as long as more than one input connects to the neuron), so even when the effect on the network is identical, the WP update can still vary. This additional variability does not influence the loss and therefore contributes purely to the variance of the estimator. A similar principle appears in the local reparameterization trick used in variational inference and dropout \parencite{Kingma2015}, where sampling at the level of activations reduces variance by eliminating redundant sources of randomness.
+
+Since node perturbation can be viewed as a variance-reduced version of weight perturbation, while both estimators coincide in expectation, we focus on node perturbation in the remainder of this thesis, where we develop a detailed analytical framework and propose theoretically motivated improvements. However, we retain weight perturbation as a baseline in the empirical evaluation to validate the theoretical variance reduction derived here.
+
+The induced-noise perspective also motivates the specific sampling rule used in INP. In most of the perturbation-learning literature considered here, node perturbations are sampled from a fixed distribution whose variance is treated as a global or layerwise hyperparameter. This includes standard Gaussian pre-activation noise in recent NP work~\parencite{hiratani2022stability,dalm2024effective}, Gaussian output-node noise in noisy-baseline NP~\parencite{cho2011node,hara2017statistical}, and related fixed-scale perturbation rules based on random-polarity or uncorrelated weight noise~\parencite{flower1992summed,cauwenberghs1993fast}. Some works do adjust the perturbation scale to match the effect of another perturbation scheme. For example, Werfel et al.~\parencite{werfel2005learning} scale the standard deviation of the node noise by \(\sqrt{N}\), equivalently the variance by \(N\), so that output-node perturbations match the average output noise induced by weight perturbations. Similarly, Z{\"u}ge et al.~\parencite{zuge2023weight} scale the WP variance by the effective input dimension in order to match the effective output perturbation strength of NP. These scalings are important, but they are still global or expectation-level corrections. In contrast, INP uses the conditional pre-activation noise distribution induced by Gaussian WP, derived in Eq.~\eqref{eq:preact_noise_dist}. Thus, for each layer and input example, the perturbation variance is scaled by the actual squared norm of the incoming activations, rather than by a fixed hyperparameter or by a coarse fan-in factor. The motivation is that the gradient is ultimately taken with respect to the weights, and fixed-variance NP ignores how strongly a given weight perturbation would affect the corresponding pre-activation. When the incoming activations are small, fixed-variance NP may perturb the node much more strongly than WP would have done; when the incoming activations are large, it may perturb it too weakly. INP therefore matches the conditional effect of WP at the pre-activation level, rather than only matching its average scale under simplifying assumptions. This does not by itself prove that INP must always train better than fixed-variance NP, but it gives a principled reason to expect a better-scaled estimator. The empirical section therefore evaluates whether this induced-noise sampling rule improves estimator quality in practice, primarily through cosine similarity and estimator variance, and secondarily through training and test loss.
+\subsection{Evaluation Framework for INP}
+
+The ultimate objective of any learning algorithm is to achieve low training and test loss, as these quantities determine whether a model successfully learns the task and generalizes to unseen data. However, loss curves alone provide limited diagnostic information. When a perturbation-based learning rule performs poorly, the loss indicates that learning failed, but it does not reveal why the algorithm failed. Conversely, when performance improves, the loss does not clarify which aspect of the learning rule caused the improvement. 
+
+To address this limitation, it is useful to introduce additional diagnostic metrics that capture specific properties of the learning dynamics. Such metrics serve two main purposes:
+
+\begin{enumerate}
+    \item \textbf{Identification of failure modes.} Diagnostic metrics make it possible to isolate specific mechanisms that degrade learning performance, such as poor directional alignment between the estimated and true gradient, excessive estimator variance, or unstable parameter dynamics.
+    
+    \item \textbf{Guidance for algorithm design.} When analytical expressions for these metrics can be derived, they provide targeted objectives for improving learning rules. In particular, terms that negatively affect a metric can often be traced to specific components of the algorithm, suggesting concrete modifications that may improve performance.
+\end{enumerate}
+
+In practice, deriving such expressions typically requires simplifying assumptions about the model or data distribution, but they can nevertheless provide valuable insight into the mechanisms that govern learning behaviour.
+
+Since perturbation-based learning relies on stochastic gradient estimators, learning performance is largely determined by the statistical properties of these estimators. Prior theoretical work, in particular the analysis presented in \cite{hiratani2022stability}, highlights three quantities that play a central role in determining learning behaviour. These are (i) the directional alignment between the estimated and true gradient, (ii) the variance of the gradient estimator, and (iii) the stability of the resulting parameter dynamics. Each of these metrics captures a different aspect of estimator quality: directional alignment determines whether updates point in a useful direction, estimator variance determines how noisy the updates are, and stability determines whether the learning dynamics remain well-behaved over time. In the following sections, we first discuss the intuition behind these metrics, then analyze how they influence the expected change in the loss, before deriving analytical expressions for them and evaluating them empirically for both node perturbation and weight perturbation on sinus regression and California housing price regression.
+\subsubsection{Directional Alignment: Cosine Similarity}
+Directional alignment measures how well the estimated gradient produced by a perturbation-based learning rule points in the same direction as the true gradient of the loss. Intuitively, if the update direction is well aligned with the true gradient, the learning rule is likely to reduce the loss efficiently. Conversely, if the estimated gradient frequently points in incorrect directions, learning becomes inefficient or may even increase the loss. A natural way to quantify this alignment is through the cosine similarity between the estimated gradient $\hat{g}$ and the true gradient $g$:
+
+\begin{equation}
+\text{cos}(\hat{g}, g) =
+\frac{\hat{g}^\top g}{\|\hat{g}\|\|g\|}
+\end{equation}
+
+Here, $\hat{g}$ denotes the gradient estimator produced by the learning rule, while $g = \nabla L(\theta)$ represents the true gradient of the loss with respect to the parameters. The numerator measures the inner product between the two vectors, while the denominator normalizes by their magnitudes. As a result, the metric takes values in the interval $[-1,1]$, where $1$ indicates perfect alignment, $0$ indicates orthogonality, and negative values indicate that the update direction tends to increase the loss. In the following section, we analyze how this quantity influences the expected change in the loss.
+
+
+\textbf{First-order relation between cosine similarity and loss change.}
+
+The role of directional alignment can be made precise by examining how a parameter update affects the loss. Let $L(\theta)$ be a differentiable loss function and consider a single update step of the form
+\[
+\theta^{+} = \theta + \Delta \theta,
+\qquad
+\Delta \theta = - \eta \, \hat{g},
+\]
+where $\eta > 0$ is the learning rate and $\hat{g}$ denotes a stochastic gradient estimator. A first-order Taylor expansion of the loss around $\theta$ gives
+\begin{equation}
+L(\theta^{+})
+=
+L(\theta + \Delta \theta)
+\approx
+L(\theta)
++
+\nabla_\theta L(\theta)^\top \Delta \theta,
+\label{eq:taylor_first_order}
+\end{equation}
+where higher-order terms in $\|\Delta \theta\|$ are neglected.
+
+Writing the true gradient as $g = \nabla_\theta L(\theta)$ and substituting $\Delta \theta = -\eta \hat{g}$ yields
+\begin{equation}
+\Delta L = L(\theta^{+}) - L(\theta)
+\approx - \eta \, g^\top \hat{g}.
+\end{equation}
+
+The inner product between the true gradient and the estimated gradient can be decomposed into their norms and the cosine similarity:
+\begin{equation}
+g^\top \hat{g}
+=
+\|g\| \, \|\hat{g}\| \cos(\hat{g}, g),
+\end{equation}
+which gives
+\begin{equation}
+\Delta L
+\approx
+- \eta \, \|g\| \, \|\hat{g}\| \, \cos(\hat{g}, g).
+\label{eq:deltaL_cosine}
+\end{equation}
+
+Equation~\eqref{eq:deltaL_cosine} shows that, in the first-order regime where the Taylor approximation~\eqref{eq:taylor_first_order} is valid, the change in loss is directly modulated by the cosine similarity between the estimated gradient and the true gradient. If $\cos(\hat{g}, g) > 0$, the update is locally descending; if $\cos(\hat{g}, g) = 0$, the update is orthogonal to the true gradient and produces no first-order improvement; and if $\cos(\hat{g}, g) < 0$, the update performs local ascent.
+
+Thus, cosine similarity provides a scale-invariant measure of the \emph{directional quality} of a gradient estimator: for fixed norms $\|g\|$ and $\|\hat{g}\|$, larger cosine similarity implies a larger first-order decrease in the loss. This argument, however, only captures the first-order behavior of the update and does not account for estimator variance or higher-order curvature effects, which will be addressed separately in later sections.
+
+\textbf{Analytical expression for directional alignment under node perturbation}
+
+The goal of this section is to derive an analytical expression for the directional alignment between the node perturbation update and the true gradient. Such an expression allows the cosine similarity to be decomposed into terms that depend on properties of the network, perturbations, and gradients. This decomposition is useful because it reveals which factors influence directional alignment and therefore provides insight into how algorithmic modifications might improve learning performance.
+
+Directional alignment is quantified using the cosine similarity between the node perturbation update and the corresponding stochastic gradient descent (SGD) update. Using the Frobenius inner product for matrices, the cosine similarity can be written as
+
+\begin{equation}
+\cos(\delta W_k^{\mathrm{NP}}, \delta W_k^{\mathrm{SGD}})
+=
+\frac{
+\mathrm{tr}\!\left[
+(\delta W_k^{\mathrm{SGD}})^\top
+\delta W_k^{\mathrm{NP}}
+\right]
+}{
+\|\delta W_k^{\mathrm{SGD}}\|_F
+\,
+\|\delta W_k^{\mathrm{NP}}\|_F
+}.
+\end{equation}
+
+To evaluate this quantity analytically, we first derive an expression for the node perturbation update in the small-perturbation regime.
+
+
+The node perturbation update is defined as
+
+\begin{equation}
+\delta W_k^{\mathrm{NP}}
+=
+-\frac{\eta}{\sigma}
+\left(
+\ell(\tilde{x}_K,x_0) - \ell(x_K,x_0)
+\right)
+\xi_k x_{k-1}^\top,
+\end{equation}
+
+where $\xi_k$ denotes the perturbation applied to the pre-activation of layer $k$, $\eta$ is the learning rate, and $\tilde{x}_K$ represents the perturbed network output.
+
+Following the analysis of \cite{hiratani2022stability}, we consider the limit of small perturbation variance $\sigma \to 0$. In this regime the network output can be linearized using a first-order Taylor expansion,
+
+\begin{equation}
+\tilde{x}_K
+=
+x_K
++
+\sigma
+\sum_{l=1}^{K}
+\frac{\partial x_K}{\partial h_l}
+\xi_l.
+\end{equation}
+
+Substituting this expansion into the loss difference and linearizing the loss yields
+
+\begin{equation}
+\ell(\tilde{x}_K,x_0) - \ell(x_K,x_0)
+\approx
+\sigma
+\sum_{l=1}^{K}
+\xi_l^\top g_l,
+\end{equation}
+
+where
+
+\begin{equation}
+g_k
+=
+\frac{\partial \ell}{\partial x_K}
+\frac{\partial x_K}{\partial h_k}
+\end{equation}
+
+denotes the backpropagated gradient with respect to the pre-activation $h_k$.
+
+Substituting this result into the node perturbation update gives
+
+\begin{equation}
+\delta W_k^{\mathrm{NP}}
+=
+-\eta
+\sum_{l=1}^{K}
+\xi_k \xi_l^\top g_l
+x_{k-1}^\top.
+\label{eq:np_update_small_sigma}
+\end{equation}
+
+For comparison, the corresponding SGD update is
+
+\begin{equation}
+\delta W_k^{\mathrm{SGD}}
+=
+-\eta
+g_k
+x_{k-1}^\top.
+\end{equation}
+
+Using the updates above, Hiratani et al.~derive an analytical expression for the expected cosine similarity between the node perturbation and SGD updates. The derivation proceeds by computing the expectations of the three quantities appearing in the cosine similarity:
+
+\begin{enumerate}
+\item the inner product
+$\mathrm{tr}[(\delta W_k^{\mathrm{SGD}})^\top \delta W_k^{\mathrm{NP}}]$,
+\item the norm of the SGD update $\|\delta W_k^{\mathrm{SGD}}\|_F$,
+\item the norm of the node perturbation update $\|\delta W_k^{\mathrm{NP}}\|_F$.
+\end{enumerate}
+
+Combining these terms yields the approximation
+
+\begin{equation}
+\left\langle
+\frac{
+\mathrm{tr}
+\left[
+(\delta W_k^{\mathrm{SGD}})^\top
+\delta W_k^{\mathrm{NP}}
+\right]
+}{
+\|\delta W_k^{\mathrm{SGD}}\|_F
+\,
+\|\delta W_k^{\mathrm{NP}}\|_F
+}
+\right\rangle
+\approx
+\sqrt{
+\frac{
+\left\langle
+\|g_k\|^2
+\|x_{k-1}\|^2
+\right\rangle
+}{
+\sum_{l=1}^{K}
+(L_k + 2\delta_{kl})
+\left\langle
+\|g_l\|^2
+\|x_{k-1}\|^2
+\right\rangle
+}
+}.
+\label{eq:np_cosine}
+\end{equation}
+
+The quantities appearing in Eq.~\eqref{eq:np_cosine} are defined as follows. 
+The vector $g_{k}$
+denotes the backpropagated gradient with respect to the pre-activation of layer $k$, while $x_{k-1}$ denotes the activity of the previous layer. The norm $\|\cdot\|$ represents the Euclidean norm. The operator $\langle \cdot \rangle$ denotes expectation taken over both the perturbation noise and the data distribution. The term $L_k$ denotes the width of layer $k$, i.e., the number of neurons in that layer, and $\delta_{kl}$ denotes the Kronecker delta, which is equal to $1$ when $k=l$ and $0$ otherwise.
+
+
+Two structural features of Eq.~\eqref{eq:np_cosine} are particularly noteworthy. 
+First, the layer width $L_k$ appears explicitly in the denominator of the expression. 
+Since this term multiplies the sum over layers, increasing the number of neurons in the perturbed layer increases the magnitude of the denominator and therefore reduces the resulting cosine similarity. 
+Second, the numerator contains the expected squared gradient term associated with layer $k$, while the denominator aggregates the corresponding terms across all layers. 
+Consequently, directional alignment depends on how large the gradient contribution of layer $k$ is relative to the combined contributions of all layers. 
+As the number of layers increases, the denominator includes contributions from a larger set of gradient terms, which reduces the relative contribution of any single layer. 
+If gradient magnitudes are unevenly distributed across layers, this effect can become even more pronounced: layers with small gradients contribute little to the numerator while the denominator still aggregates contributions from all layers, leading to particularly weak cosine similarity for those layers.
+Taken together, these observations indicate that both increasing layer width and increasing network depth tend to reduce cosine similarity under the current learning rule, suggesting that node perturbation may struggle to maintain good directional alignment as networks scale.
+
+
+The analytical expression in Eq.~\eqref{eq:np_cosine} relies on two approximations introduced in the derivation of \cite{hiratani2022stability}. 
+First, the analysis assumes the small-perturbation regime $\sigma \to 0$. 
+In this regime the network output and the loss can be linearized using first-order Taylor expansions, which allows the loss difference to be expressed in terms of the backpropagated gradients $g_k$. 
+Under this assumption the node perturbation update in Eq.~\eqref{eq:np_update_small_sigma} represents the first-order approximation of the true update rule. Second, the derivation approximates the expectation of the cosine similarity in Eq.~\eqref{eq:np_cosine}. 
+The left-hand side of this equation contains the expectation of a ratio, while the right-hand side is obtained by computing the expectations of the numerator and denominator terms separately and then combining them. 
+In other words, the expectation of the ratio is approximated using the ratio of the expected terms that appear in the numerator and denominator. 
+This approximation is used in \cite{hiratani2022stability} to obtain a tractable analytical expression for the cosine similarity. Although this step is not exact in general, it is commonly used in high-dimensional analyses where the norms of random vectors tend to concentrate around their expected values. 
+In such settings the fluctuations of the denominator become relatively small compared to its mean, making the approximation sufficiently accurate for analyzing the qualitative scaling behavior of the learning rule.
+
+\subsubsection{Variance of the Gradient Estimator}
+While cosine similarity captures the directional quality of a gradient estimator, it does not describe how noisy the estimator is. In perturbation-based learning the gradient is obtained through stochastic perturbations, which introduces randomness into the update direction. Even if the estimator is unbiased and well aligned with the true gradient on average, large fluctuations between updates can still lead to inefficient learning and unstable optimization. To quantify this effect we analyze the variance of the gradient estimator.
+
+For a vector-valued estimator such as a gradient, variance is naturally described by the covariance matrix
+\begin{equation}
+\Sigma
+=
+\mathbb{E}\!\left[(\hat g - \mathbb{E}[\hat g])(\hat g - \mathbb{E}[\hat g])^\top\right].
+\end{equation}
+
+Since node perturbation provides an unbiased estimate of the true gradient, $\mathbb{E}[\hat g] = g$, this can equivalently be written as
+\begin{equation}
+\Sigma
+=
+\mathbb{E}\!\left[(\hat g - g)(\hat g - g)^\top\right].
+\end{equation}
+
+Here $\hat g$ denotes the stochastic gradient estimator and $g = \nabla L(\theta)$ is the true gradient of the loss. The matrix $\Sigma$ therefore captures the variability of the estimator around the true gradient. Its diagonal elements correspond to the variance of individual gradient components, while the off-diagonal terms describe correlations between fluctuations in different parameters. In practice the expectation in this expression cannot be computed exactly and is therefore estimated empirically by sampling multiple realizations of the stochastic gradient estimator. In the following section we analyze how this covariance structure influences the expected change in the loss.
+
+
+\textbf{Second-order relation between variance and loss change}
+
+In the previous section we analyzed the change in loss using a first-order Taylor expansion, which revealed how directional alignment influences learning. However, this analysis ignores both curvature of the loss landscape and fluctuations in the gradient estimator. To capture these effects we consider a second-order Taylor expansion of the loss.
+
+Let $L(\theta)$ be a twice differentiable loss function and consider the update
+\[
+\theta^{+} = \theta + \Delta \theta,
+\qquad
+\Delta \theta = - \eta \, \hat{g},
+\]
+where $\hat g$ is a stochastic gradient estimator and $\eta > 0$ is the learning rate. A second-order Taylor expansion of the loss around $\theta$ gives
+
+\begin{equation}
+L(\theta^{+})
+=
+L(\theta + \Delta \theta)
+\approx
+L(\theta)
++
+\nabla_\theta L(\theta)^\top \Delta \theta
++
+\frac{1}{2}\Delta \theta^\top H \Delta \theta,
+\end{equation}
+
+where $H = \nabla_\theta^2 L(\theta)$ denotes the Hessian of the loss and higher-order terms are neglected.
+
+Substituting $\Delta\theta = -\eta \hat g$ and writing $g = \nabla L(\theta)$ yields
+
+\begin{equation}
+\Delta L
+\approx
+- \eta \, g^\top \hat g
++
+\frac{\eta^2}{2}
+\hat g^\top H \hat g .
+\end{equation}
+
+Taking the expectation with respect to the stochastic gradient estimator gives
+
+\begin{equation}
+\mathbb{E}[\Delta L]
+=
+- \eta \, g^\top g
++
+\frac{\eta^2}{2}
+\mathrm{tr}(H \Sigma),
+\end{equation}
+
+where $\Sigma = \mathbb{E}[(\hat g-g)(\hat g-g)^\top]$ is the covariance matrix of the gradient estimator.
+
+This expression shows that the effect of stochastic gradient noise on learning is governed by the interaction between the covariance matrix $\Sigma$ and the curvature of the loss captured by the Hessian $H$. In contrast to the first-order analysis of directional alignment, where we saw that cosine similarity affect the expected change in loss directly, the second-order term reveals that estimator variance affects learning through the quantity $\mathrm{tr}(H\Sigma)$. Consequently, variance is particularly harmful when it lies in directions of high curvature in the loss landscape.
+
+\textbf{Analytical covariance of node perturbation}
+
+To understand how estimator variance behaves under node perturbation, we derive an analytical expression for the covariance of the update. As shown in the previous section, the effect of stochastic gradient noise on the expected loss is governed by the quantity $\mathrm{tr}(H\Sigma)$. Deriving the covariance matrix therefore reveals which components of the learning rule contribute to estimator variance.
+
+Following the analysis of \cite{hiratani2022stability}, and using the small-perturbation update in Eq.~\eqref{eq:np_update_small_sigma}, the covariance of the node perturbation update between layers $k$ and $l$ can be written as
+
+\begin{equation}
+C^{\mathrm{NP}}_{kl}
+\approx
+2C^{\mathrm{SGD}}_{kl}
++
+\delta_{kl}
+\left\langle
+\left(
+\sum_m \|g_m\|^2
+\right)
+I_k \otimes x_{k-1}x_{k-1}^{\top}
+\right\rangle .
+\label{eq:np_covariance}
+\end{equation}
+
+Here $C^{\mathrm{NP}}_{kl}$ denotes the covariance between the updates of layers $k$ and $l$. 
+Taken together across all layers, these blocks form the covariance matrix of the node perturbation gradient estimator. 
+This matrix corresponds to the covariance $\Sigma$ appearing in Eq.~(18), which determines how estimator variance affects the expected change in loss. 
+The covariance is written in block form here because this representation makes the layer-wise structure of the update easier to analyze. 
+The term $C^{\mathrm{SGD}}_{kl}$ denotes the corresponding covariance term for SGD. 
+The Kronecker delta $\delta_{kl}$ ensures that the second term contributes only to the variance of layer $k$. 
+The quantity $\sum_m \|g_m\|^2$ represents the total squared gradient magnitude across layers, and $x_{k-1}x_{k-1}^{\top}$ denotes the outer product of the presynaptic activity vector. 
+As before, $\langle \cdot \rangle$ denotes expectation over both the perturbation noise and the data distribution.
+
+Several structural observations from Eq.~\eqref{eq:np_covariance} are relevant when considering the variance of the node perturbation estimator. 
+First, the cross-layer covariance is approximately twice that of SGD through the term $2C^{\mathrm{SGD}}_{kl}$, indicating that node perturbation introduces only a moderate increase in covariance between updates of different layers. 
+The dominant additional contribution instead appears in the second term, which affects the variance within each layer through the factor $\delta_{kl}$. 
+Second, this variance term depends on two quantities: the total gradient magnitude $\sum_m \|g_m\|^2$ and the outer product $x_{k-1}x_{k-1}^{\top}$ of the presynaptic activity. 
+The outer product captures the correlation structure of the inputs to the layer. 
+When the components of $x_{k-1}$ are correlated, this matrix contains large off-diagonal elements, which increases the covariance of the update. 
+In contrast, if the inputs are approximately independent, the contribution primarily appears as diagonal variance. 
+The magnitude of this variance is further scaled by the total gradient energy across all layers, implying that large gradients in any part of the network increase the variance of the node perturbation update throughout the network. 
+Finally, the relevance of this covariance structure must be interpreted in the context of the loss dynamics. 
+As shown earlier, stochastic gradient noise affects the expected loss through the term $\mathrm{tr}(H\Sigma)$, which couples the covariance of the estimator with the curvature of the loss landscape. 
+Consequently, reducing overall variance is not necessarily the most important objective; variance is most harmful when it lies in directions of high curvature. 
+In contrast to the cosine similarity analysis, where improving directional alignment directly improves the expected loss decrease, variance reduction may therefore be most effective when it specifically targets the components of the covariance structure that interact strongly with the Hessian.
+
+The covariance expression in Eq.~\eqref{eq:np_covariance} relies on several assumptions introduced in the analysis of \cite{hiratani2022stability}. 
+First, as in the previous subsection, the derivation assumes the small-perturbation regime $\sigma \to 0$, which allows the loss difference to be linearized using a first-order Taylor expansion and leads to the simplified node perturbation update in Eq.~\eqref{eq:np_update_small_sigma}. 
+Second, the perturbations applied to different neurons are assumed to be independent and identically distributed, which allows expectations of products of perturbation variables to be simplified when computing the covariance of the update. 
+Finally, the full covariance expression contains an additional term involving $\langle g_k x_{k-1}^\top \rangle$. In the analysis of \cite{hiratani2022stability}, this term is assumed to be approximately zero, allowing the covariance to be written in the simplified form shown in Eq.~\eqref{eq:np_covariance}. 
+Although these assumptions simplify the derivation, the resulting expression still captures the dominant structural contributions to the variance of the node perturbation estimator and therefore provides a useful approximation for analyzing how estimator variance depends on properties of the network and the learning rule.
+
+\subsubsection{Stability of the Learning Dynamics}
+
+Having examined the directional alignment and variance of the gradient estimator, we now turn to the third quantity that governs the effectiveness of perturbation-based learning: the stability of the resulting learning dynamics. While cosine similarity and estimator variance describe the quality of individual updates, stability determines whether the sequence of updates leads to well-behaved training over time. Following the analysis of \cite{hiratani2022stability}, stability can be characterized by tracking the evolution of two macroscopic quantities: the prediction error and the norm of the network weights. Let
+\[
+e(t)
+\]
+denote the prediction error of the student network with respect to the teacher, and let
+\[
+a(t) = \|W\|
+\]
+denote the norm of the network weights.
+
+These two quantities capture whether the learning process remains stable during training. If the prediction error grows without bound, the model fails to approximate the target function. Similarly, if the weight norm increases indefinitely, the parameters leave the regime in which the learning dynamics remain well behaved, which can eventually lead to degraded performance and unstable optimization. Analyzing the joint evolution of the prediction error and the weight norm therefore provides a natural way to study the stability of perturbation-based learning. In the following sections we analyze analytical expressions for the dynamics of these quantities derived in \cite{hiratani2022stability}, and discuss how they reveal a fundamental instability mechanism in node perturbation learning.
+
+\textbf{Analytical Dynamics of Error and Weight Norm}
+
+To analyze the stability of node perturbation learning, we examine analytical expressions for the dynamics of the prediction error and the weight norm derived in \cite{hiratani2022stability}. In contrast to the previous metrics, where we first analyzed how cosine similarity and estimator variance influence the expected change in the loss before deriving analytical expressions for these quantities, the stability analysis directly derives dynamical equations for the error and weight norm themselves. Since the prediction error is one of the state variables of this system, these equations describe the evolution of the loss directly, making a separate derivation of the expected loss change unnecessary. The resulting equations therefore provide a dynamical systems description of the learning process.
+
+These equations are derived in an idealized teacher--student setting with deep linear networks. In this setup, a teacher network generates the target outputs for a given input, while a student network is trained to learn the same input--output mapping, corresponding to a standard supervised learning problem. The linear structure allows the high-dimensional learning dynamics to be reduced to a small set of macroscopic variables, which makes the analysis mathematically tractable. While this represents a simplification relative to the nonlinear neural networks considered in this thesis, the empirical results presented in \cite{hiratani2022stability} suggest that the same qualitative behavior also appears in nonlinear networks, a point that will be discussed further in the assumptions section below. In the following sections we first examine the resulting dynamical system in the noise-free case, before analyzing how the presence of teacher noise changes the behavior of the system.
+
+\paragraph{Noise-free case.}
+
+We first consider the idealized case in which the teacher is noise-free, meaning that the targets provided to the student network are generated deterministically by the teacher without any additional stochastic noise. In this setting, the analysis of \cite{hiratani2022stability} shows that the learning dynamics of node perturbation can be reduced to a system of differential equations describing the joint evolution of the weight norm and the prediction error. Denoting the weight norm by \(a(t)\) and the prediction error by \(e(t)\), where \(e(t)\) represents the mean squared prediction error between the student and teacher outputs, the dynamics can be written as, the dynamics can be written as
+\begin{equation}
+\dot{a} = c_0 e,
+\label{eq:np_a_dot}
+\end{equation}
+\begin{equation}
+\dot{e} = -(2-c_0 a)a e .
+\label{eq:np_e_dot}
+\end{equation}
+
+Here \(a(t)\) denotes the norm of the network weights and \(e(t)\) denotes the prediction error with respect to the teacher. The quantities \(\dot{a}\) and \(\dot{e}\) denote the time derivatives of these variables, describing how the weight norm and the prediction error evolve during training. The constant \(c_0 > 0\) collects the dependence on the learning rate and network architecture, and in the formulation of \cite{hiratani2022stability} is given by
+\begin{equation}
+c_0 = \eta L_x L_y (1+\beta_0),
+\end{equation}
+where \(\eta\) is the learning rate, \(L_x\) and \(L_y\) denote the input and output dimensionality of the linear teacher--student model, and \(\beta_0\) is a constant determined by the statistics of the perturbations. The coupled equations in Eqs.~\eqref{eq:np_a_dot}--\eqref{eq:np_e_dot} therefore describe the joint dynamics of the weight norm and the prediction error during learning.
+
+The dynamical system derived above directly reveals the stability properties of the learning dynamics in the noise-free case. From Eq.~\eqref{eq:np_e_dot}, the prediction error evolves according to
+\begin{equation}
+\dot{e} = -(2-c_0 a)a e .
+\end{equation}
+Since \(a>0\) and \(e>0\), the error decreases as long as
+\begin{equation}
+2 - c_0 a > 0.
+\end{equation}
+In this regime the error is reduced while the weight norm increases according to Eq.~\eqref{eq:np_a_dot}. If the learning rate is sufficiently small, the error converges to zero before the weight norm reaches the critical threshold \(a = 2/c_0\). Once \(e=0\), both \(\dot{e}\) and \(\dot{a}\) vanish and the dynamics become stationary, meaning that the system can remain stable in the noise-free setting.
+
+\paragraph{Noisy teacher case.}
+
+We next consider the case in which the teacher outputs contain additive noise. In practice this situation is almost unavoidable, since targets obtained from real systems are typically affected by measurement noise, sensor uncertainty, or other sources of stochastic variability. In this setting, the targets provided to the student network are corrupted by a stochastic noise term with variance $\sigma_t^2$. Following the analysis of \cite{hiratani2022stability}, the resulting learning dynamics become
+\begin{equation}
+\dot{a} = c_0 \left(e + \frac{\sigma_t^2}{L_x}\right),
+\label{eq:np_a_dot_noise}
+\end{equation}
+\begin{equation}
+\dot{e} = -2ae + c_0 a^2 \left(e + \frac{\sigma_t^2}{L_x}\right),
+\label{eq:np_e_dot_noise}
+\end{equation}
+where $\sigma_t^2$ denotes the variance of the teacher noise and $L_x$ is the input dimensionality of the linear teacher--student model. Relative to the noise-free case, the additional term $\sigma_t^2/L_x$ reflects the irreducible error introduced by noisy targets, which modifies the evolution of both the weight norm and the prediction error.
+
+The presence of teacher noise fundamentally changes the stability properties of the system. In this case the error dynamics become
+\begin{equation}
+\dot{e} = -2ae + c_0 a^2\left(e + \frac{\sigma_t^2}{L_x}\right).
+\end{equation}
+Rearranging this expression shows that the error decreases only when
+\begin{equation}
+e > \frac{c_0 a \sigma_t^2}{L_x (2 - c_0 a)}.
+\end{equation}
+The analysis above reveals a fundamental limitation of node perturbation learning: in the presence of teacher noise the learning dynamics are ultimately unstable. Once the prediction error falls below the threshold derived above, the sign of \(\dot{e}\) becomes positive and the error begins to increase again. Because teacher noise prevents the error from converging to zero, the weight norm continues to grow according to Eq.~\eqref{eq:np_a_dot_noise}, eventually forcing the system across this instability threshold. The dynamical system therefore predicts that, when the targets contain noise, instability is unavoidable in the long run. This behavior is clearly undesirable for a learning algorithm, since it implies that the parameters will eventually leave the regime in which the model approximates the target function well.
+
+While this result may initially appear to severely limit the usefulness of node perturbation, two observations mitigate this concern. First, \cite{hiratani2022stability} demonstrate that applying weight normalization prevents the unbounded growth of the weight norm and stabilizes the learning dynamics in practice. This modification does introduce bias, since constraining the weights restricts the space of solutions available to the network, but it nevertheless provides a practical way of avoiding divergence. Second, the instability predicted by the dynamical system may occur only after long training times. In particular, the threshold depends on the constant \(c_0\), which is determined by the learning rate and the network size, suggesting that appropriate choices of these parameters may delay the onset of instability. In practice it is therefore possible that useful learning occurs well before the instability becomes visible. These observations suggest that although node perturbation exhibits an inherent instability mechanism, the practical consequences depend strongly on the training regime and warrant further investigation.
+
+The stability analysis described above relies on several simplifying assumptions introduced in \cite{hiratani2022stability}. Most importantly, the dynamical system in Eqs.~\eqref{eq:np_a_dot}–\eqref{eq:np_e_dot_noise} is derived in a teacher--student setting with deep linear networks, meaning that both the teacher and student networks consist only of linear transformations without nonlinear activation functions. This assumption allows the high-dimensional parameter dynamics of the network to be reduced to the two macroscopic variables \(a(t)\), representing the weight norm, and \(e(t)\), representing the squared prediction error. While this represents a simplification relative to the nonlinear neural networks considered in this thesis, the authors demonstrate empirically that the same qualitative behavior predicted by the linear analysis also appears in nonlinear networks trained with node perturbation, including the steady growth of the weight norm and the eventual instability in the presence of teacher noise. In addition, the derivation assumes a large-width regime in which sums over weights can be approximated by expectations over Gaussian random variables, consistent with Xavier--Glorot style initialization, which simplifies the analysis by allowing correlations between individual parameters to be neglected. Finally, the dynamics are analyzed in the continuous-time limit obtained by considering sufficiently small learning rates so that the discrete weight updates can be approximated by differential equations, and the gradient estimator itself is based on the same first-order small-perturbation approximation used earlier when deriving the cosine similarity and covariance expressions. Although these assumptions simplify the analysis considerably, together they allow the derivation to reveal the mechanism responsible for instability in perturbation-based learning rules while still providing insight into the behavior observed in more realistic nonlinear networks.
+
+\paragraph{Diffusion interpretation.}
+
+Equation~\eqref{eq:stochastic_linear_system} describes a discrete-time Ornstein–Uhlenbeck process. If curvature provides insufficient contraction, the dynamics reduce to a random walk:
+\begin{equation}
+\theta_{t+1} \approx \theta_t - \eta z_t,
+\end{equation}
+whose variance grows linearly in time. Even when the mean remains near $\theta^\star$, the variance — and thus the expected loss — can increase.
+
+
+\subsection{Theory-Driven Extensions to INP}
+\subsubsection{TO BE REMOVED (most likely): Geometry Aware Perturbation}
+
+\textbf{Exploration Anisotropy in Large Networks}
+
+Perturbation-based learning methods estimate gradients by injecting noise into the parameters and observing the resulting change in loss. In its simplest form, weight perturbation samples noise isotropically in parameter space,
+\begin{equation}
+    \epsilon_i \sim \mathcal{N}(0, \sigma^2),
+\end{equation}
+and forms a gradient estimate from the scalar loss difference.
+
+However, the mapping from parameters to loss is highly anisotropic in large neural networks. Some parameters induce large changes in model output and loss when perturbed, while others have negligible effect. As a result, isotropic noise in parameter space produces highly anisotropic changes in function space. A small subset of parameters can dominate the observed loss variation, while many perturbations contribute little information. This leads to inefficient exploration and poor signal-to-noise ratio in the scalar learning signal.
+
+This phenomenon is closely related to classical observations in high-dimensional optimization, where parameter-space isotropy does not imply function-space isotropy (Amari, 1998; Martens, 2014). In particular, natural gradient methods rescale updates according to the Fisher information matrix in order to ensure that steps of equal magnitude correspond to approximately equal changes in model behavior (Amari, 1998). 
+
+While natural gradient rescales \emph{updates}, perturbation learning offers an alternative intervention point: rescaling the \emph{noise distribution itself}. Instead of sampling perturbations isotropically in parameter space, we aim to sample perturbations approximately isotropically in loss space.
+
+\textbf{Objective: Isotropic Perturbations in Loss Space}
+
+Let $\theta_i$ denote a parameter and let $\Delta L_i$ denote the change in loss induced by perturbing only $\theta_i$. The goal of geometry-aware perturbations is to enforce
+\begin{equation}
+    \mathbb{E}[(\Delta L_i)^2] \approx \text{constant across } i,
+\end{equation}
+so that each perturbation induces comparable expected impact on the loss.
+
+Under a first-order approximation,
+\begin{equation}
+    \Delta L_i \approx \frac{\partial L}{\partial \theta_i} \epsilon_i,
+\end{equation}
+so isotropy in loss space suggests sampling noise as
+\begin{equation}
+    \epsilon_i \sim \mathcal{N}\left(0, \frac{\sigma^2}{s_i^2 + \delta}\right),
+\end{equation}
+where $s_i$ is an estimate of sensitivity, ideally proportional to
+\begin{equation}
+    s_i^2 \approx \left( \frac{\partial L}{\partial \theta_i} \right)^2.
+\end{equation}
+
+To ensure fair comparison with isotropic perturbations, total injected noise energy is normalized such that
+\begin{equation}
+    \sum_i \text{Var}(\epsilon_i) = \text{constant}.
+\end{equation}
+
+The central hypothesis is that exploration inefficiency due to anisotropy may limit perturbation learning, and that geometry-aware noise sampling can improve learning dynamics.
+
+\textbf{Experimental Evaluation}
+
+We evaluate the hypothesis through four experiments, ordered from theoretical upper bound to practical approximations.
+
+\textbf{Experiment 1: Oracle Sensitivity Scaling}
+
+This experiment tests whether geometry-aware noise improves performance in principle.
+
+Using backpropagation, we compute the true gradient magnitude
+\begin{equation}
+    s_i = \left| \frac{\partial L}{\partial \theta_i} \right|.
+\end{equation}
+
+Noise is then sampled as
+\begin{equation}
+    \epsilon_i \sim \mathcal{N}\left(0, \frac{\sigma^2}{s_i^2 + \delta}\right),
+\end{equation}
+with total variance normalized.
+
+If oracle scaling improves convergence speed or final performance relative to isotropic perturbations, then exploration anisotropy is likely a limiting factor. If not, then anisotropy is unlikely to be the dominant bottleneck.
+
+\textbf{Experiment 2: Eligibility-Based Local Approximation}
+
+Since true gradients are unavailable in biologically plausible settings, we approximate sensitivity using local eligibility traces:
+\begin{equation}
+    e_{ij} = x_i f'(z_j),
+\end{equation}
+where $x_i$ is presynaptic activity and $f'(z_j)$ is the derivative of the postsynaptic activation.
+
+We maintain a running average
+\begin{equation}
+    \hat{s}_{ij}^2 = \text{EMA}(e_{ij}^2),
+\end{equation}
+and sample perturbations as
+\begin{equation}
+    \epsilon_{ij} \sim \mathcal{N}\left(0, \frac{\sigma^2}{\hat{s}_{ij}^2 + \delta}\right).
+\end{equation}
+
+This provides a biologically local approximation to Fisher-diagonal scaling.
+
+\textbf{Experiment 3: Layer-Wise Sensitivity Scaling}
+
+An intermediate approximation is to scale perturbations at the layer level.
+
+For layer $k$, we estimate average gradient magnitude
+\begin{equation}
+    s_k^2 = \text{EMA}\left( \frac{1}{|\theta_k|} \sum_{i \in k} \hat{g}_i^2 \right),
+\end{equation}
+and scale perturbations within that layer as
+\begin{equation}
+    \epsilon_i \sim \mathcal{N}\left(0, \frac{\sigma^2}{s_k^2 + \delta}\right).
+\end{equation}
+
+This tests whether coarse sensitivity equalization across depth improves exploration.
+
+\textbf{Experiment 4: Adam-Inspired Sensitivity Scaling}
+
+Finally, we consider an adaptive estimate inspired by RMSProp/Adam (Kingma \& Ba, 2015).
+
+We maintain a running second moment estimate
+\begin{equation}
+    v_i = \text{EMA}(\hat{g}_i^2),
+\end{equation}
+where $\hat{g}_i$ is the perturbation-based gradient estimate.
+
+Noise is sampled as
+\begin{equation}
+    \epsilon_i \sim \mathcal{N}\left(0, \frac{\sigma^2}{\sqrt{v_i} + \delta}\right).
+\end{equation}
+
+This approach uses second-order statistics of the learning signal itself as a proxy for functional sensitivity.
+

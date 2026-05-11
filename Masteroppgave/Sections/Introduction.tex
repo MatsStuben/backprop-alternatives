@@ -1,0 +1,85 @@
+\section{Introduction}
+
+\subsection{Background and Motivation}
+
+\subsubsection{Recent Progress in Artificial Intelligence}
+
+Artificial intelligence has undergone a dramatic transformation over the past decade, emerging as one of the most powerful technological forces of our time. Recent advances in deep learning and large-scale optimization have produced systems capable of performing tasks once considered exclusive to human intelligence. Large language models can generate coherent text, write code, and assist in complex reasoning tasks. Reinforcement learning systems have achieved superhuman performance in games such as chess and Go, while breakthroughs in scientific machine learning have enabled progress on long-standing challenges such as protein structure prediction. At the same time, autonomous systems are transitioning from research prototypes to real-world deployment, with self-driving vehicles now operating in urban environments. Taken together, these developments suggest that artificial intelligence is not only progressing rapidly, but may be approaching a level of capability that raises fundamental questions about the feasibility of artificial general intelligence.
+
+\subsubsection{Open Challenges in Current AI Systems}
+Despite this rapid progress, there is increasing debate within the research community regarding whether current approaches are sufficient to achieve artificial general intelligence. Yann LeCun, often referred to as one of the “godfathers of AI”, has been particularly vocal in his criticism of current paradigms, recently co-founding a company backed by over \$1 billion to pursue fundamentally different approaches to intelligence. These developments suggest that, despite impressive empirical success, fundamental challenges may still remain. Among others, these include:
+
+\begin{itemize}
+
+    \item \textbf{Energy intensity.} The 10**11 neurons and 1015
+    synapses contained in the typical human brain expend approximately
+    20 W of power, whereas a digital simulation of an artificial neural network of approximately the same size consumes 7.9MW. Source: Wong, T. M. et al. 1014. Report no. RJ10502 (ALM1211-004) (IBM, 2012).
+    The power consumption of this simulation of the brain puts that of conventional digital
+    systems into context. You can also include a graph that show the energy consumption per model since 1985. Exponential graph. Cant keep growing like this forever. So maybe right now, the real bottleneck to intelligence is energy. So we need more energy efficient architectures to achieve AGI.
+
+
+    \item \textbf{Lack of continual learning.} 
+    Most modern AI systems lack the ability to learn continuously from experience. During training, models are optimized on a fixed dataset, after which their parameters remain largely static during deployment, preventing them from naturally adapting to new information. While updates through fine-tuning are possible, these often suffer from \emph{catastrophic forgetting}, where newly acquired knowledge interferes with previously learned information. This limitation is problematic because a generally intelligent system should be able to incorporate new information as it becomes available—for example, adapting to a specific user or immediately integrating major real-world events—without degrading prior knowledge. Current approaches such as in-context learning partially address this by conditioning on recent inputs, but this remains a temporary and indirect workaround rather than true persistent learning. As such, the lack of robust continual learning mechanisms represents a key limitation of current AI systems.
+    
+    \item \textbf{Limited out-of-distribution generalization.} 
+    Current AI systems often perform well on tasks that resemble their training data, but their performance can degrade significantly when faced with novel situations. This is because most models rely on the assumption that training and test data follow similar distributions, an assumption that rarely holds in real-world settings. As a result, models tend to exploit statistical regularities or spurious correlations present in the training data, rather than learning underlying structure that transfers to new environments. Recent work has shown that even when models appear robust on standard benchmarks, significant failure modes can emerge under distribution shifts, indicating that current evaluation methods may overestimate true generalization performance. Since general intelligence fundamentally requires the ability to apply knowledge to new and unseen situations, limited out-of-distribution generalization represents a central challenge for current AI systems.
+        
+    \item \textbf{Limited abstraction.} 
+    Current AI systems often struggle to learn high-level, abstract concepts that generalize across different contexts. Instead, they tend to rely on statistical regularities and surface-level features present in the training data, rather than capturing the underlying meaning of a concept. For example, a model trained to recognize chairs may rely on features such as the presence of four legs, and fail to identify unconventional designs that do not match these patterns, despite clearly serving the same purpose. In contrast, the abstract concept of a chair is simply something to sit on, independent of its specific appearance. As a result, models may perform well on familiar inputs but fail to generalize when superficial characteristics change.
+
+    \item \textbf{Lack of grounding in the physical world.} 
+    Most modern AI systems learn from static datasets rather than through interaction with the environment, limiting their ability to connect representations to real-world experience. As a result, their knowledge is largely derived from correlations in data rather than direct interaction with the underlying phenomena. For example, a language model may learn about cooking by reading large numbers of recipes, but it has no direct experience of taste, texture, or smell, and therefore lacks a grounded understanding of what the concepts it describes actually correspond to in the real world. This makes their behavior highly dependent on the data they were trained on and limits their ability to reason about concepts that are inherently tied to physical interaction.
+    
+
+\end{itemize}
+
+\subsubsection{Two Perspectives on the Path Toward General Intelligence}
+
+There are broadly two perspectives on the trajectory of current AI systems. On the one hand, some researchers argue that existing approaches may be fundamentally limited, lacking key ingredients required for general intelligence. On the other hand, there is a belief that continued scaling of data, model size, and computational resources will lead to increasingly general capabilities, with no clear evidence of saturation so far. 
+
+Regardless of which perspective proves correct, systems that achieve general intelligence must exhibit the capabilities outlined above, such as continual learning, strong generalization, and the ability to form abstract and grounded representations. Even if these properties ultimately emerge from scaling alone, it remains unclear whether current approaches represent the most efficient or principled way of achieving them. The natural thing to do is, therefore, to look at systems that already exhibit these capabilities.
+\subsubsection{Biological Systems as a Reference for General Intelligence}
+
+Biological systems provide a proof of existence that the capabilities outlined above can be achieved in practice. Humans and other animals exhibit continual learning, adapting to new experiences without requiring a separate training phase. They demonstrate strong generalization, applying knowledge to novel situations—for example, recognizing objects under new conditions or solving problems they have not explicitly encountered before. 
+
+In addition, biological learning is highly sample-efficient. A child can learn the meaning of a new word, such as ``butterfly,'' from only a few exposures by leveraging contextual cues, such as where a speaker is looking or pointing, rather than requiring repeated observations across large datasets. Biological systems also form abstract representations, allowing them to recognize that an object is a chair regardless of its specific appearance, as long as it serves the function of something to sit on. 
+
+Finally, biological intelligence is grounded in interaction with the physical world. Concepts such as ``heavy'' or ``taste'' are not learned through descriptions alone, but through direct sensory experience and interaction. Together, these properties highlight that the challenges identified in current AI systems are routinely addressed in biological systems, suggesting that they may provide a valuable source of inspiration for developing more general and adaptive learning mechanisms.
+
+\subsubsection{Biological Inspiration: Architecture and Learning}
+
+Research inspired by biological systems broadly follows two directions. One approach focuses on developing architectures that more closely resemble biological neural systems. This includes neuromorphic hardware \textbf{I could show an example or two here, and generally spend some more time on neuromorphic arhcitectures}, but also more radical approaches where biological neurons themselves are used as the computational substrate. A particularly striking example is the CL1 system developed by Cortical Labs, where networks of living neurons are interfaced with a digital environment and trained to perform tasks through real-time interaction. In such systems, neural activity both drives and responds to external inputs, forming a closed feedback loop that allows the system to adapt its behavior over time. Despite consisting of relatively simple neural cultures, these systems have demonstrated the ability to learn goal-directed behavior, highlighting the potential of biological substrates for information processing and learning. While still in an early stage, this line of work represents a fundamentally different paradigm from conventional AI, where computation is no longer confined to silicon, but emerges from the dynamics of living neural systems.
+
+An alternative approach is to focus not on replicating the full biological architecture, but on understanding and emulating the mechanisms by which such systems learn. Rather than building biological systems directly, this direction seeks to identify learning rules that capture key properties of biological learning. In this thesis, we focus on this second direction, and in particular on biologically plausible learning algorithms.
+
+\subsubsection{Motivation for Alternative Learning Rules}
+
+Backpropagation is not biologically plausible. It relies on mechanisms such as exact gradient computation, symmetric weight transport, and the propagation of global error signals through the network—none of which are known to be implementable in biological neural systems. If architectures that more closely resemble biological systems, such as CL1, turn out to be a viable path toward more general intelligence, then backpropagation is no longer applicable as a learning mechanism. In such settings, alternative learning rules are not just interesting, but necessary.
+
+At the same time, even within current machine learning systems, backpropagation is not without limitations. It is computationally and memory intensive, and its effectiveness relies on highly structured training procedures and large amounts of data. This raises the question of whether alternative learning mechanisms, potentially inspired by biological systems, can offer different trade-offs or point toward new directions for improving existing approaches.
+
+\subsection{Contribution, Research Objectives and Research Questions}
+\subsubsection{Contribution}
+\subsubsection{Objectives}
+The objective of this thesis is to investigate perturbation-based learning algorithms, with a particular focus on node and weight perturbation, as biologically plausible alternatives to backpropagation.
+
+\begin{itemize}
+
+\item \textbf{Evaluate performance and learning dynamics.} 
+Assess how perturbation-based learning methods perform across a range of tasks, both empirically and theoretically. This includes analyzing convergence behavior, stability, and efficiency, and establishing metrics that allow for meaningful comparison with backpropagation.
+
+\item \textbf{Explore improvements within perturbation-based methods.} 
+Investigate modifications and extensions to node and weight perturbation aimed at improving their performance, robustness, and scalability.
+
+\item \textbf{Extract insights for alternative learning mechanisms.} 
+Examine whether the behavior and properties of perturbation-based learning can provide insights into alternative optimization strategies, potentially informing the development of improved or complementary approaches to backpropagation.
+
+\end{itemize}
+
+\subsubsection{Research Questions}
+
+\subsection{Structure of the Thesis}
+
+
+
+
