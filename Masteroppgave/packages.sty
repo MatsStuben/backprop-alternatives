@@ -32,10 +32,100 @@
 
 % --- Bibliography & References---
 \ifdefined\draftpreview
-    \renewcommand{\cite}[2][]{[#2]}
-    \newcommand{\parencite}[2][]{[#2]}
-    \newcommand{\textcite}[2][]{#2}
-    \newcommand{\autocite}[2][]{[#2]}
+    \makeatletter
+    \expandafter\def\csname draftciteauthor@hiratani2022stability\endcsname{Hiratani et al.}
+    \expandafter\def\csname draftciteyear@hiratani2022stability\endcsname{2022}
+    \expandafter\def\csname draftciteauthor@Williams1992\endcsname{Williams}
+    \expandafter\def\csname draftciteyear@Williams1992\endcsname{1992}
+    \expandafter\def\csname draftciteauthor@Kingma2015\endcsname{Kingma et al.}
+    \expandafter\def\csname draftciteyear@Kingma2015\endcsname{2015}
+    \expandafter\def\csname draftciteauthor@dalm2024effective\endcsname{Dalm et al.}
+    \expandafter\def\csname draftciteyear@dalm2024effective\endcsname{2024}
+    \expandafter\def\csname draftciteauthor@flower1992summed\endcsname{Flower and Jabri}
+    \expandafter\def\csname draftciteyear@flower1992summed\endcsname{1992}
+    \expandafter\def\csname draftciteauthor@widrow1990thirty\endcsname{Widrow and Lehr}
+    \expandafter\def\csname draftciteyear@widrow1990thirty\endcsname{1990}
+    \expandafter\def\csname draftciteauthor@cauwenberghs1993fast\endcsname{Cauwenberghs}
+    \expandafter\def\csname draftciteyear@cauwenberghs1993fast\endcsname{1993}
+    \expandafter\def\csname draftciteauthor@werfel2005learning\endcsname{Werfel et al.}
+    \expandafter\def\csname draftciteyear@werfel2005learning\endcsname{2005}
+    \expandafter\def\csname draftciteauthor@zuge2023weight\endcsname{Z{\"u}ge et al.}
+    \expandafter\def\csname draftciteyear@zuge2023weight\endcsname{2023}
+    \expandafter\def\csname draftciteauthor@cho2011node\endcsname{Cho et al.}
+    \expandafter\def\csname draftciteyear@cho2011node\endcsname{2011}
+    \expandafter\def\csname draftciteauthor@hara2017statistical\endcsname{Hara et al.}
+    \expandafter\def\csname draftciteyear@hara2017statistical\endcsname{2017}
+    \expandafter\def\csname draftciteauthor@ren2023scaling\endcsname{Ren et al.}
+    \expandafter\def\csname draftciteyear@ren2023scaling\endcsname{2023}
+    \expandafter\def\csname draftciteauthor@dehaene2020how\endcsname{Dehaene}
+    \expandafter\def\csname draftciteyear@dehaene2020how\endcsname{2020}
+    \expandafter\def\csname draftciteauthor@kandel2021principles\endcsname{Kandel et al.}
+    \expandafter\def\csname draftciteyear@kandel2021principles\endcsname{2021}
+    \expandafter\def\csname draftciteauthor@hebb1949organization\endcsname{Hebb}
+    \expandafter\def\csname draftciteyear@hebb1949organization\endcsname{1949}
+    \expandafter\def\csname draftciteauthor@oja1982simplified\endcsname{Oja}
+    \expandafter\def\csname draftciteyear@oja1982simplified\endcsname{1982}
+    \expandafter\def\csname draftciteauthor@schultz1997neural\endcsname{Schultz et al.}
+    \expandafter\def\csname draftciteyear@schultz1997neural\endcsname{1997}
+    \expandafter\def\csname draftciteauthor@fremaux2016neuromodulated\endcsname{Fr{\'e}maux and Gerstner}
+    \expandafter\def\csname draftciteyear@fremaux2016neuromodulated\endcsname{2016}
+    \expandafter\def\csname draftciteauthor@gerstner2018eligibility\endcsname{Gerstner et al.}
+    \expandafter\def\csname draftciteyear@gerstner2018eligibility\endcsname{2018}
+    \expandafter\def\csname draftciteauthor@seung2003learning\endcsname{Seung}
+    \expandafter\def\csname draftciteyear@seung2003learning\endcsname{2003}
+    \expandafter\def\csname draftciteauthor@goodfellow2016deep\endcsname{Goodfellow et al.}
+    \expandafter\def\csname draftciteyear@goodfellow2016deep\endcsname{2016}
+    \expandafter\def\csname draftciteauthor@rumelhart1986learning\endcsname{Rumelhart et al.}
+    \expandafter\def\csname draftciteyear@rumelhart1986learning\endcsname{1986}
+    \expandafter\def\csname draftciteauthor@lillicrap2020backpropagation\endcsname{Lillicrap et al.}
+    \expandafter\def\csname draftciteyear@lillicrap2020backpropagation\endcsname{2020}
+    \expandafter\def\csname draftciteauthor@crick1989recent\endcsname{Crick}
+    \expandafter\def\csname draftciteyear@crick1989recent\endcsname{1989}
+    \expandafter\def\csname draftciteauthor@lillicrap2016random\endcsname{Lillicrap et al.}
+    \expandafter\def\csname draftciteyear@lillicrap2016random\endcsname{2016}
+    \expandafter\def\csname draftciteauthor@nokland2016direct\endcsname{N{\o}kland}
+    \expandafter\def\csname draftciteyear@nokland2016direct\endcsname{2016}
+    \expandafter\def\csname draftciteauthor@rao1999predictive\endcsname{Rao and Ballard}
+    \expandafter\def\csname draftciteyear@rao1999predictive\endcsname{1999}
+    \expandafter\def\csname draftciteauthor@whittington2017approximation\endcsname{Whittington and Bogacz}
+    \expandafter\def\csname draftciteyear@whittington2017approximation\endcsname{2017}
+    \expandafter\def\csname draftciteauthor@hinton2022forward\endcsname{Hinton}
+    \expandafter\def\csname draftciteyear@hinton2022forward\endcsname{2022}
+    \expandafter\def\csname draftciteauthor@williams1992simple\endcsname{Williams}
+    \expandafter\def\csname draftciteyear@williams1992simple\endcsname{1992}
+    \newcommand{\draftciteauthor}[1]{%
+        \ifcsname draftciteauthor@#1\endcsname
+            \csname draftciteauthor@#1\endcsname
+        \else
+            #1%
+        \fi
+    }
+    \newcommand{\draftciteyear}[1]{%
+        \ifcsname draftciteyear@#1\endcsname
+            \csname draftciteyear@#1\endcsname
+        \else
+            n.d.%
+        \fi
+    }
+    \newcommand{\draftciteparenlist}[1]{%
+        \def\draftcitesep{}%
+        \@for\draftcitekey:=#1\do{%
+            \draftcitesep\draftciteauthor{\draftcitekey}, \draftciteyear{\draftcitekey}%
+            \def\draftcitesep{; }%
+        }%
+    }
+    \newcommand{\draftcitetextlist}[1]{%
+        \def\draftcitesep{}%
+        \@for\draftcitekey:=#1\do{%
+            \draftcitesep\draftciteauthor{\draftcitekey}~(\draftciteyear{\draftcitekey})%
+            \def\draftcitesep{; }%
+        }%
+    }
+    \renewcommand{\cite}[2][]{(\draftciteparenlist{#2})}
+    \newcommand{\parencite}[2][]{(\draftciteparenlist{#2})}
+    \newcommand{\textcite}[2][]{\draftcitetextlist{#2}}
+    \newcommand{\autocite}[2][]{(\draftciteparenlist{#2})}
+    \makeatother
     \newcommand{\printbibliography}[1][]{}
 \else
     \usepackage[backend = biber,    % Recommended backend for sorting bibliography
@@ -86,6 +176,8 @@
 \usepackage{tabularx}
 \usepackage{array}
 \usepackage{rotating}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 \hypersetup{    % Color of hyper-references
     colorlinks,
     citecolor = black,
@@ -96,10 +188,20 @@
 \usepackage{comment}    % Comment blocks of text using \begin{comment} ... \end{comment}
 \usepackage{pdfpages}   % Enables import of pdf-pages using e.g. \includepdf[pages=-]{./my_pdf.pdf}
 
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4}
+\makeatletter
+\renewcommand\paragraph{\@startsection{paragraph}{4}{\z@}%
+    {1.5ex \@plus 1ex \@minus .2ex}%
+    {0.8ex \@plus .2ex}%
+    {\normalfont\normalsize\bfseries}}
+\makeatother
+
 % --- Image ---
 \usepackage{graphicx}   % Handle images
 \usepackage{wrapfig}    % Wrap text around images
 \usepackage{float}      % Force image location using "H"
+\usepackage{placeins}   % Keep floats close to the sections where they are introduced
 \usepackage{url}        % Insert urls
 \urlstyle{sf}           % Set url-style as "sans-serif". Other options are e.g. "same" or "rm"
 \newcommand{\HRule}{\rule{\linewidth}{0.5mm}}   % Ruler
@@ -131,6 +233,7 @@
 \usepackage{amsmath}    % Math formulas and improved typographical quality of their output
 \usepackage{amssymb}    % Extended symbol collection
 \usepackage{amsthm}     % Helps define theorem-like structures
+\newtheorem{proposition}{Proposition}
 \usepackage{textcomp}   % Used in the package "gensymb" (below), which will give warnings if "textcomp" is not imported in advance
 \usepackage{gensymb}    % Adds extra generic symbols for math and text mode, e.g. \degree
 

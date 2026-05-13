@@ -1,25 +1,376 @@
 \section{Theory}
 
-\subsection{How the brain learns}
-\subsubsection{Hebbian Learning}
-\subsubsection{Neuromodulators and global feedback}
+\subsection{Theory taken from existing literature}
 
-\subsection{Learning in artifical neural networks}
-\subsubsection{Supervised learning}
-\subsubsection{Backpropagation}
+This section addresses the first objective of the thesis by reviewing the relevant perturbation-learning literature and clarifying how existing methods differ in noise placement, learning signal, and update rule.
+
+\subsubsection{How the brain learns}
+
+Learning in biological systems can be understood as the process of modifying internal models of the world. These internal models allow an organism to interpret sensory inputs, predict future events, and choose actions. In the brain, such models are not stored as explicit symbolic rules, but are encoded in the activity of large networks of neurons and in the strengths of the synaptic connections between them. Learning therefore requires plasticity: the ability of synapses to strengthen or weaken in response to experience~\parencite{dehaene2020how,kandel2021principles}.
+
+\paragraph{Hebbian learning}
+
+At the level of individual synapses, one of the most influential principles is Hebbian learning. Hebb's original idea was that when the activity of a presynaptic neuron repeatedly contributes to the activation of a postsynaptic neuron, the connection between them should become stronger~\parencite{hebb1949organization}. In mathematical form, this is often expressed as a local update rule
+\[
+    \Delta w_{ij} = \eta x_i f(x_j),
+\]
+where \(w_{ij}\) is the synaptic weight from presynaptic neuron \(i\) to postsynaptic neuron \(j\), \(x_i\) is the presynaptic activity, \(x_j\) is the postsynaptic activity, \(f(\cdot)\) is a function of the postsynaptic state, and \(\eta\) is a learning-rate parameter. The key feature of this rule is locality: the synapse only requires information available at the synapse itself, namely pre- and postsynaptic activity. Stabilized variants of Hebbian learning, such as Oja's rule, show that such local mechanisms can extract meaningful structure from data, for example by learning the first principal component of the input distribution~\parencite{oja1982simplified}.
+
+\paragraph{Neuromodulators and three-factor learning}
+
+However, purely Hebbian learning is not sufficient as a general model of learning, because it does not include information about whether an outcome was useful, rewarding, or correct. Biological learning often depends on such feedback. A central example is dopamine, which is strongly associated with reward-prediction errors: dopamine activity tends to increase when outcomes are better than expected and decrease when outcomes are worse than expected~\parencite{schultz1997neural}. This type of signal is not specific to a single synapse, but is broadcast more broadly and can modulate plasticity across many synapses.
+
+This motivates three-factor learning rules, where synaptic change depends on three components: presynaptic activity, postsynaptic state, and a global modulatory signal. In this framework, the local pre- and postsynaptic activity creates an eligibility trace at the synapse, which marks the synapse as eligible for modification. A later global signal, such as a reward-prediction error, determines whether this eligible synapse is strengthened or weakened~\parencite{fremaux2016neuromodulated,gerstner2018eligibility}. A simple abstract form of such a rule is
+\[
+    \Delta w_{ij} = \eta e_{ij} M,
+    \qquad
+    e_{ij} = x_i f(x_j),
+\]
+where \(e_{ij}\) is the local eligibility trace and \(M\) is the global modulatory signal. Three-factor rules are therefore more powerful than purely Hebbian learning because they combine local credit assignment with global information about outcome quality.
+
+\paragraph{Stochasticity in biological learning}
+
+Biological learning also takes place in a noisy environment. Neural firing is variable, synaptic transmission is stochastic, and the same stimulus does not always produce exactly the same neural response. Rather than being only a nuisance, this stochasticity can provide a source of exploration. If random fluctuations in neural activity or synaptic efficacy are correlated with later reward or error signals, then the nervous system can reinforce fluctuations that improve performance and suppress those that do not~\parencite{seung2003learning}. This idea directly motivates perturbation-based learning algorithms, where random perturbations are introduced into weights or neural activities and then correlated with a global scalar learning signal.
+
+The biological principles relevant for this thesis can therefore be summarized as follows. Synaptic learning should be local in the sense that each weight update depends on information available at the corresponding synapse. It may also be modulated by a global scalar signal, analogous to a reward, error, or neuromodulatory feedback signal. Finally, stochastic fluctuations in weights or neural activity can provide the exploratory signal needed for learning. These three ingredients---local synaptic information, global feedback, and stochastic perturbations---form the biological motivation for the perturbation-based learning rules studied in the remainder of this chapter.
+
+\subsubsection{Learning in artificial neural networks}
+
+\paragraph{Feedforward neural networks and supervised learning}
+
+Artificial neural networks can be viewed as simplified computational models inspired by biological neural systems. Like biological networks, they consist of units connected by weighted connections, and learning takes place by adjusting these weights. In this thesis, we focus on feedforward neural networks, where information passes through the network layer by layer from input to output. For neuron \(j\) in layer \(\ell\), the pre-activation and activation are given by
+\[
+    z_j^\ell
+    =
+    \sum_i W_{ij}^\ell x_i^{\ell-1} + b_j^\ell,
+    \qquad
+    x_j^\ell = \phi(z_j^\ell),
+\]
+where \(W_{ij}^\ell\) is the weight from neuron \(i\) in layer \(\ell-1\) to neuron \(j\) in layer \(\ell\), \(b_j^\ell\) is a bias term, \(\phi(\cdot)\) is a nonlinear activation function, and \(x_j^\ell\) is the resulting neuron activity. By stacking multiple such layers, the network defines a parameterized function \(f_\theta(x)\), where \(\theta\) denotes the collection of all weights and biases~\parencite{goodfellow2016deep}.
+
+In supervised learning, the objective is to adjust the parameters so that the network maps inputs to desired outputs. Given a dataset of input--target pairs \((x,y)\), the network produces a prediction \(f_\theta(x)\), and a loss function \(L(y,f_\theta(x))\) measures the discrepancy between the prediction and the target. Training then consists of finding parameters that minimize the expected loss,
+\[
+    \theta^\ast
+    =
+    \arg\min_\theta
+    \mathbb{E}_{(x,y)}
+    \left[
+        L(y,f_\theta(x))
+    \right].
+\]
+This formalizes learning as parameter optimization: the network changes its weights and biases so that its internal mapping better matches the structure of the data. In this sense, artificial neural networks and biological neural systems share a high-level principle: both learn by changing the parameters of a distributed network. The main difference lies in how those parameter changes are computed.
+
+\paragraph{Backpropagation}
+
+Backpropagation is the standard algorithm for computing gradients in artificial neural networks~\parencite{rumelhart1986learning}. It allows gradient descent to be applied efficiently by using the chain rule to propagate error information backward through the network. For a loss function \(L\), the parameter update is based on the gradient
+\[
+    \nabla_\theta L,
+\]
+which specifies how each parameter should change to locally reduce the loss. Once this gradient is computed, standard gradient descent updates the parameters according to
+\[
+    \theta \leftarrow \theta - \eta \nabla_\theta L,
+\]
+where \(\eta > 0\) is the learning rate.
+
+To derive the backpropagation update, consider a feedforward network with pre-activations \(z_j^\ell\) and activations \(x_j^\ell=\phi(z_j^\ell)\). The key quantity in backpropagation is the error term
+\[
+    \delta_j^\ell
+    :=
+    \frac{\partial L}{\partial z_j^\ell},
+\]
+which measures how a small change in the pre-activation of neuron \(j\) in layer \(\ell\) affects the loss. Once \(\delta_j^\ell\) is known, the gradient with respect to an incoming weight follows directly from the chain rule:
+\[
+    \frac{\partial L}{\partial W_{ij}^\ell}
+    =
+    \frac{\partial L}{\partial z_j^\ell}
+    \frac{\partial z_j^\ell}{\partial W_{ij}^\ell}.
+\]
+Since
+\[
+    z_j^\ell
+    =
+    \sum_i W_{ij}^\ell x_i^{\ell-1} + b_j^\ell,
+\]
+we have
+\[
+    \frac{\partial z_j^\ell}{\partial W_{ij}^\ell}
+    =
+    x_i^{\ell-1}.
+\]
+Thus, the weight gradient is
+\[
+    \frac{\partial L}{\partial W_{ij}^\ell}
+    =
+    \delta_j^\ell x_i^{\ell-1}.
+\]
+Similarly, the bias gradient is
+\[
+    \frac{\partial L}{\partial b_j^\ell}
+    =
+    \delta_j^\ell.
+\]
+These equations show that if the error term \(\delta_j^\ell\) is known, the gradients in that layer can be computed using the same local presynaptic activity that appeared in the forward pass.
+
+The remaining question is how to compute the error terms \(\delta_j^\ell\). In the output layer, this term can be computed directly from the loss. For a neuron \(j\) in the final layer \(L\), we have
+\[
+    \delta_j^L
+    =
+    \frac{\partial L}{\partial z_j^L}
+    =
+    \frac{\partial L}{\partial x_j^L}
+    \phi'(z_j^L).
+\]
+For hidden layers, the loss does not depend on the layer directly, but only through its effect on later layers. Applying the chain rule gives
+\[
+    \frac{\partial L}{\partial x_j^\ell}
+    =
+    \sum_k
+    \frac{\partial L}{\partial z_k^{\ell+1}}
+    \frac{\partial z_k^{\ell+1}}{\partial x_j^\ell}.
+\]
+Since
+\[
+    z_k^{\ell+1}
+    =
+    \sum_j W_{jk}^{\ell+1} x_j^\ell + b_k^{\ell+1},
+\]
+we obtain
+\[
+    \frac{\partial z_k^{\ell+1}}{\partial x_j^\ell}
+    =
+    W_{jk}^{\ell+1}.
+\]
+Therefore,
+\[
+    \frac{\partial L}{\partial x_j^\ell}
+    =
+    \sum_k
+    W_{jk}^{\ell+1}
+    \delta_k^{\ell+1}.
+\]
+Multiplying by the derivative of the activation function gives the recursive backpropagation equation
+\[
+    \delta_j^\ell
+    =
+    \frac{\partial L}{\partial z_j^\ell}
+    =
+    \phi'(z_j^\ell)
+    \sum_k
+    W_{jk}^{\ell+1}
+    \delta_k^{\ell+1}.
+\]
+This recursion allows the error terms to be computed layer by layer from the output layer back toward the input layer.
+
+Combining the error recursion with the weight-gradient expression gives the full backpropagation update for a hidden-layer weight:
+\[
+    \frac{\partial L}{\partial W_{ij}^\ell}
+    =
+    x_i^{\ell-1}
+    \phi'(z_j^\ell)
+    \sum_k
+    W_{jk}^{\ell+1}
+    \delta_k^{\ell+1}.
+\]
+Backpropagation is powerful because it computes the exact gradient of the loss with respect to every parameter using one forward pass and one backward pass. This efficiency is the reason it remains the dominant training algorithm for artificial neural networks. In this thesis, backpropagation is therefore used as the reference method in the empirical evaluation. However, the mechanism by which it computes gradients differs substantially from the local and modulatory learning principles discussed above, motivating the question of whether more biologically plausible alternatives can provide useful learning rules.
+
+\paragraph{Why backpropagation is biologically implausible}
+
+A literal implementation of backpropagation is biologically implausible because it requires the network to compute exact gradient information through a separate recursive backward calculation. In artificial neural networks, this is straightforward: error terms are computed at the output layer and then propagated backward layer by layer using the chain rule. In biological circuits, however, it is not clear how neurons and synapses would implement such an explicit derivative computation. The brain does not appear to have a separate computational mechanism that stores error variables, multiplies them by downstream weight matrices, and recursively distributes exact gradients to earlier layers. Thus, the central issue is not merely one technical detail of backpropagation, but the broader question of how a biological network could perform the precise layer-wise credit assignment required by the algorithm~\parencite{lillicrap2020backpropagation}.
+
+The difficulty becomes clearer when comparing backpropagation with the biological learning principles discussed above. Three-factor learning rules require local synaptic information, such as presynaptic activity and postsynaptic state, together with a global modulatory signal. Backpropagation instead requires detailed vector-valued error feedback, where each neuron receives a specific error signal describing how its activity should change to reduce the final loss. This makes backpropagation much more informative and efficient than scalar-feedback learning rules, but also much harder to reconcile with biological implementation. A scalar reward or error signal can plausibly be broadcast through neuromodulatory systems, whereas a precise neuron-specific error vector must somehow be routed through the network and assigned to the correct synapses.
+
+Several concrete implementation problems follow from this requirement for precise backward error signals. The most widely discussed is the weight transport problem: in standard backpropagation, errors are propagated backward using the transpose of the forward weight matrices, requiring the backward pathway to have access to the exact strengths of the forward synapses. Backpropagation also relies on signed error signals that may vary over many orders of magnitude, whereas biological neurons communicate through spikes and firing rates that do not naturally represent arbitrary signed derivative values. Finally, feedback connections in the brain appear to influence neural activity itself, for example through modulation, attention, or top-down prediction, while feedback in standard backpropagation carries abstract error derivatives used only for learning. These issues make a direct biological implementation of backpropagation highly problematic~\parencite{crick1989recent,lillicrap2020backpropagation}.
+
+This does not mean that backpropagation is irrelevant for neuroscience. A more careful interpretation is that strict backpropagation is biologically implausible, while backpropagation-like principles may still provide insight into how the brain solves credit assignment. Several proposed mechanisms attempt to preserve parts of the computational benefit of backpropagation while avoiding its most unrealistic requirements, for example by using random feedback weights, local activity differences, or predictive coding-style error signals. Nevertheless, these methods remain attempts to approximate or replace the exact backward gradient computation. In this thesis, we therefore focus on perturbation-based learning rules, which are less efficient than backpropagation but fit more naturally with local synaptic information, stochastic neural activity, and global scalar feedback.
+
 \subsubsection{Biologically plausible alternatives to backpropagation}
-Move the method section of weight perturbation and node perturbation here. Give FA and FF (or some other methods) a relatively short and compact introduction, explain how they work, why they are biologically plausible, and how well they work. Do the same for perturbation methods, then conclude that in this thesis, we are going to focus on perturbation methods. Then introduce wp and standard np. Then the noise-induced version of np will be presented in the theory section.
 
-\begin{itemize}
-    \item Feedback Alignment
-    \item Forward Forward
-    \item STDP
-    \item Perturbation methods
-\end{itemize}
+The biological implausibility of strict backpropagation has motivated a broad range of alternative learning rules. These methods differ in how closely they try to approximate backpropagation and in which biological constraints they prioritize. Some aim to preserve much of the efficiency of backpropagation while relaxing specific assumptions, such as exact symmetric feedback weights. Others avoid explicit backward error propagation altogether, instead relying on local objectives, recurrent dynamics, or stochastic exploration. The purpose of this section is not to review all such methods in detail, but to briefly place perturbation-based learning within the broader landscape of biologically plausible alternatives.
+
+Feedback alignment addresses one of the classical problems with backpropagation: the need for backward feedback weights to match the transpose of the forward weights. In standard backpropagation, the error signal in a hidden layer is computed using the downstream forward weights, which creates the weight transport problem discussed above. Feedback alignment shows that exact symmetry is not always necessary. Instead, error signals can be propagated through fixed random feedback weights, while the forward weights gradually adapt so that the updates still become useful for learning~\parencite{lillicrap2016random}. Direct feedback alignment extends this idea by sending error information directly from the output layer to hidden layers, bypassing parts of the backward recursive computation~\parencite{nokland2016direct}. These methods are important because they show that some of the strict requirements of backpropagation can be relaxed, although they still rely on relatively detailed vector-valued feedback signals.
+
+Predictive coding provides another influential route toward biologically plausible credit assignment. In predictive coding models, hierarchical neural circuits attempt to predict activity in other layers, and local prediction errors are used to update synaptic weights. This idea has a long history in computational neuroscience, particularly as a model of cortical processing in the visual system~\parencite{rao1999predictive}. More recent work has shown that, under certain assumptions, predictive coding networks can approximate the gradients computed by backpropagation using local Hebbian-like updates~\parencite{whittington2017approximation}. This makes predictive coding a compelling candidate for biologically plausible deep learning. At the same time, it typically requires structured recurrent dynamics and inference phases, making the connection to a concrete biological implementation more involved than for simpler scalar-feedback learning rules.
+
+A more recent alternative is the forward-forward algorithm, which replaces the backward pass with two forward passes: one using positive data and one using negative data~\parencite{hinton2022forward}. Instead of propagating gradients backward through the network, each layer is trained using a local objective that encourages high ``goodness'' for positive examples and low goodness for negative examples. This removes the need for a conventional backward pass and makes the learning rule more local than standard backpropagation. However, the method also changes the learning problem substantially, since it depends on the construction of positive and negative examples and layer-wise objectives rather than directly estimating the gradient of a global loss.
+
+Perturbation methods take a different and conceptually simpler approach. Instead of computing an error derivative for each neuron or synapse, they inject random perturbations into either the weights or the neural activities and observe how these perturbations affect performance. If a perturbation improves performance, the corresponding change is reinforced; if it worsens performance, the change is reversed. This gives learning rules that combine local information about the perturbation and neural activity with a global scalar feedback signal, making them closely related to three-factor learning principles. Weight perturbation applies this idea at the level of synaptic weights, while node perturbation applies it at the level of neural activity~\parencite{williams1992simple,werfel2005learning,hiratani2022stability}. Perturbation methods are generally less efficient than backpropagation, but they are attractive because they require only forward evaluations, stochastic fluctuations, and scalar feedback.
+
+This thesis focuses on perturbation methods for three reasons. First, they align naturally with the biological principles introduced earlier: local synaptic information, stochastic neural activity or synaptic fluctuations, and global modulatory feedback. Second, they are simple enough to implement and analyze in standard neural network models, while still being plausible candidates for more biologically motivated architectures. Third, the literature contains fewer general theoretical comparisons between different perturbation methods than between backpropagation-like alternatives. Rather than surveying many biologically plausible algorithms superficially, this thesis therefore focuses on one family of methods in depth. The remainder of this section develops the theory of weight perturbation and node perturbation, before introducing the input-scaled node perturbation method proposed in this thesis.
+
+\subsubsection{Weight perturbation}
+
+Perturbation-based learning provides a simple alternative to backpropagation by estimating gradients using only forward evaluations of the network. Instead of explicitly computing derivatives, the idea is to introduce small random perturbations to the parameters and observe how these perturbations affect the loss. If a perturbation leads to a decrease in loss, then moving the parameters in that direction is beneficial; if it increases the loss, the direction is unfavorable. By correlating random perturbations with the resulting change in loss, one can construct a stochastic estimate of the gradient.
+
+To formalize this perturbation-based approach, we model the network parameters as noisy rather than fixed. Let
+$\boldsymbol{\mu}$ denote the deterministic parameter vector that we seek to optimize, and define
+perturbed parameters by
+\[
+\boldsymbol{\theta} \sim \mathcal{N}(\boldsymbol{\mu}, \sigma^2 \mathbf{I}),
+\]
+where $\sigma > 0$ is a small fixed perturbation scale. Rather than optimizing the deterministic loss $L(\boldsymbol{\mu})$ directly, we consider the expected loss under parameter perturbations,
+\begin{equation}
+F(\boldsymbol{\mu}) := \mathbb{E}_{\boldsymbol{\theta} \sim p_{\boldsymbol{\mu}}}
+\!\left[L(\boldsymbol{\theta})\right],
+\label{eq:smoothed_objective}
+\end{equation}
+where $p_{\boldsymbol{\mu}}(\boldsymbol{\theta}) = \mathcal{N}(\boldsymbol{\mu}, \sigma^2 \mathbf{I})$.
+We now seek to construct an estimator of the gradient of this objective. As we will show, it is possible to obtain an unbiased estimate of $\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})$ using only forward evaluations of the network. For sufficiently small $\sigma$, this gradient closely approximates the gradient of the original loss $L(\boldsymbol{\mu})$.
+
+To compute $\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})$, we write the expectation explicitly as
+\[
+F(\boldsymbol{\mu})
+=
+\int L(\boldsymbol{\theta})\, p_{\boldsymbol{\mu}}(\boldsymbol{\theta})\, d\boldsymbol{\theta},
+\]
+
+and differentiate under the integral sign:
+\[
+\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})
+=
+\int L(\boldsymbol{\theta})\, \nabla_{\boldsymbol{\mu}} p_{\boldsymbol{\mu}}(\boldsymbol{\theta})\, d\boldsymbol{\theta}.
+\]
+This step is valid under standard regularity conditions, and allows us to make the dependence on $\boldsymbol{\mu}$ explicit inside the integral. Following the score-function estimator~\parencite{Williams1992}, we use the identity
+\[
+\nabla_{\boldsymbol{\mu}} p_{\boldsymbol{\mu}}(\boldsymbol{\theta})
+=
+p_{\boldsymbol{\mu}}(\boldsymbol{\theta})\, \nabla_{\boldsymbol{\mu}} \log p_{\boldsymbol{\mu}}(\boldsymbol{\theta}),
+\]
+which yields
+\begin{equation}
+\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})
+=
+\mathbb{E}_{\boldsymbol{\theta} \sim p_{\boldsymbol{\mu}}}
+\!\left[
+L(\boldsymbol{\theta})\, \nabla_{\boldsymbol{\mu}} \log p_{\boldsymbol{\mu}}(\boldsymbol{\theta})
+\right].
+\label{eq:score_function_nn}
+\end{equation}
+This expression rewrites the gradient of an expectation as an expectation involving the score function $\nabla_{\boldsymbol{\mu}} \log p_{\boldsymbol{\mu}}(\boldsymbol{\theta})$, enabling gradient estimation using Monte Carlo sampling.
+
+For the Gaussian distribution $p_{\boldsymbol{\mu}}(\boldsymbol{\theta}) = \mathcal{N}(\boldsymbol{\mu}, \sigma^2 \mathbf{I})$,
+the log-density is given by
+\[
+\log p_{\boldsymbol{\mu}}(\boldsymbol{\theta})
+=
+-\frac{1}{2\sigma^2}\|\boldsymbol{\theta} - \boldsymbol{\mu}\|^2 + C,
+\]
+and its gradient is
+\[
+\nabla_{\boldsymbol{\mu}} \log p_{\boldsymbol{\mu}}(\boldsymbol{\theta})
+=
+\frac{\boldsymbol{\theta} - \boldsymbol{\mu}}{\sigma^2}.
+\]
+Substituting into \eqref{eq:score_function_nn} yields
+\[
+\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})
+=
+\mathbb{E}
+\!\left[
+L(\boldsymbol{\theta})\, \frac{\boldsymbol{\theta} - \boldsymbol{\mu}}{\sigma^2}
+\right].
+\]
+Using the reparameterization $\boldsymbol{\theta} = \boldsymbol{\mu} + \sigma \boldsymbol{\xi}$, we obtain
+\begin{equation}
+\nabla_{\boldsymbol{\mu}} F(\boldsymbol{\mu})
+=
+\mathbb{E}
+\!\left[
+L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi})\, \frac{\boldsymbol{\xi}}{\sigma}
+\right].
+\label{eq:wp_expectation}
+\end{equation}
+
+In practice, the expectation in \eqref{eq:wp_expectation} cannot be computed exactly, as it requires integrating over all possible perturbations. Instead, we approximate it using Monte Carlo sampling, which allows us to estimate the gradient using only forward evaluations of the network. For a single sample $\boldsymbol{\xi}$, this yields the estimator
+\[
+\widehat{g}_i
+=
+L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi})\, \frac{\xi_i}{\sigma}.
+\]
+
+To reduce the variance of this estimator, one can subtract a baseline $b$ that does not depend on the individual perturbation $\xi_i$. The estimator remains unbiased, since
+\[
+\mathbb{E}\!\left[b \frac{\xi_i}{\sigma}\right] = 0,
+\]
+as $\xi_i$ has zero mean and $b$ is independent of $\xi_i$. The specific batch-mean baseline used in this thesis is described in the method section.
+
+Intuitively, the baseline centers the learning signal: perturbations that lead to lower-than-average loss reinforce their contribution, while those that perform worse than average are reversed. This reduces variance in the gradient estimate without affecting its expectation.
+The resulting estimator becomes
+\begin{equation}
+\widehat{g}_i
+=
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)\frac{\xi_i}{\sigma}.
+\label{eq:wp_estimator}
+\end{equation}
+
+Applying gradient descent, we update the parameters in the negative gradient direction:
+\begin{equation}
+\Delta \mu_i
+=
+-\eta
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)\frac{\xi_i}{\sigma},
+\label{eq:wp_update}
+\end{equation}
+where $\eta$ is the learning rate. This corresponds to the weight perturbation update rule. This update rule constitutes an unbiased Monte Carlo estimator of the gradient of the expected loss, implying that its expected update direction coincides with the true backpropagation gradient, although potentially with high variance.
+
+\subsubsection{Node perturbation and variants}
+
+Node perturbation provides an alternative to weight perturbation by injecting noise at the level of neuron activities rather than directly at the level of individual synaptic weights. The basic motivation is that a neural network typically contains many more weights than nodes. Perturbing the nodes therefore reduces the dimensionality of the stochastic search space, while still allowing the resulting scalar change in loss or reward to be assigned back to individual incoming weights using local presynaptic activity. In this sense, node perturbation uses a small amount of structural information about the network: a desired change in a neuron's pre-activation can be translated into a weight update by multiplying with the activity of the corresponding presynaptic neuron.
+
+Early perturbation-based learning rules were often formulated as finite-difference methods. In Madaline-style neuron perturbation~\parencite{widrow1990thirty} and the summed weight neuron perturbation method of \textcite{flower1992summed}, the change in error caused by a perturbation is used to approximate a local derivative. For a perturbation applied to neuron \(i\), the derivative of the error with respect to the neuron's net input is approximated by a forward difference,
+\[
+    \frac{\partial E}{\partial \mathrm{net}_i}
+    \approx
+    \frac{\Delta E_i}{r_i},
+\]
+where \(r_i\) is the applied perturbation. The corresponding weight update is then obtained by multiplying this local derivative estimate with the presynaptic activity. This differs from the score-function-style estimators considered in this thesis: in the finite-difference formulation, the learning signal is divided by the perturbation, whereas in score-function-style perturbation learning, the learning signal is multiplied by the perturbation.
+
+A closely related but distinct development is the stochastic error-descent algorithm of \textcite{cauwenberghs1993fast}. Instead of perturbing one parameter at a time, Cauwenberghs considers a parallel random perturbation vector \(\boldsymbol{\pi}\) and updates the parameters according to
+\[
+    \Delta \mathbf{p}
+    =
+    -\mu\bigl(\mathcal{E}(\mathbf{p}+\boldsymbol{\pi})-\mathcal{E}(\mathbf{p})\bigr)\boldsymbol{\pi}.
+\]
+This has the same qualitative form as modern score-function estimators: a scalar change in error is multiplied by the perturbation vector. Under small perturbations and uncorrelated perturbation components with equal variance, the expected update follows the gradient direction. This makes the method closer to the perturbation estimators studied in this thesis than the earlier finite-difference rules, although it is formulated as a general parameter perturbation method rather than specifically as node perturbation.
+
+Modern node perturbation is usually written in a score-function-like form. For a network with pre-activation \(h_k = W_k x_{k-1}\), a perturbation \(n_k\) is added to the node activity or pre-activation,
+\[
+    \tilde h_k = h_k + n_k,
+    \qquad
+    n_k \sim \mathcal{N}(0,\sigma^2 I),
+\]
+and the resulting change in loss is used to update the incoming weights:
+\[
+    \Delta W_k
+    =
+    -\eta \, \Delta \ell \, \frac{n_k x_{k-1}^{\top}}{\sigma^2}.
+\]
+Equivalently, if \(n_k=\sigma \xi_k\) with \(\xi_k\sim\mathcal{N}(0,I)\), the update is proportional to \(-\Delta \ell\,\xi_k x_{k-1}^{\top}/\sigma\), with constant factors often absorbed into the learning rate. Here \(\Delta \ell\) denotes a scalar learning signal, typically the difference between the perturbed loss and some baseline loss. This update is local in the sense that the synaptic update depends only on the presynaptic activity \(x_{k-1}\), the postsynaptic perturbation, and a global scalar learning signal.
+
+Different node perturbation methods mainly differ along three axes: where the perturbation is added, how the perturbation is sampled, and how the baseline is formed. In single-layer linear analyses, such as \textcite{werfel2005learning} and \textcite{cho2011node}, perturbations are added directly to the output units. In multilayer networks, more recent work such as \textcite{hiratani2022stability} and \textcite{dalm2024effective} applies perturbations to hidden-layer pre-activations or activities. This distinction is important because output perturbation is sufficient in a single-layer linear model, while multilayer networks require perturbations throughout the network if all layers are to receive credit.
+
+Most recent theoretical treatments sample node perturbations from a Gaussian distribution. For example, \textcite{werfel2005learning} use Gaussian output perturbations in their linear perceptron analysis, while \textcite{hiratani2022stability} use Gaussian pre-activation perturbations in deep networks. \textcite{zuge2023weight} also use Gaussian node perturbations, but in temporally extended tasks the perturbations are time-dependent, so the update contains an eligibility trace over time. In contrast, earlier finite-difference-style methods often used fixed-magnitude or random-sign perturbations, and \textcite{cauwenberghs1993fast} only requires perturbations to be zero-mean, uncorrelated, and have equal variance.
+
+The baseline used to form the scalar learning signal also varies across the literature. A common choice is a noiseless baseline, where the learning signal is the difference between the perturbed loss and the unperturbed loss,
+\[
+    \Delta \ell = \ell_{\mathrm{pert}} - \ell_{\mathrm{clean}}.
+\]
+This is the form used in many standard NP and WP formulations. However, \textcite{cho2011node} argue that a noiseless baseline may be biologically unrealistic because neural activity is intrinsically noisy. They therefore propose a noisy-baseline version of node perturbation, where a second independent perturbation is used to compute the baseline:
+\[
+    \Delta \ell = \ell_{\xi} - \ell_{\zeta}.
+\]
+\textcite{hara2017statistical} later analyze this noisy-baseline formulation using statistical mechanics. In this thesis, we instead use a batch-mean baseline, as described in the method section. This choice keeps the update within the same score-function-style family, but avoids an additional noiseless or independently perturbed baseline forward pass.
+
+A final important distinction concerns the scale of the perturbation. In the simplest form of node perturbation, the perturbation variance is fixed globally or per layer:
+\[
+    n_k \sim \mathcal{N}(0,\sigma^2 I).
+\]
+However, some work adjusts the perturbation scale to make comparisons between node and weight perturbation more meaningful. In the linear setting of \textcite{werfel2005learning}, weight perturbation of \(MN\) weights induces output perturbations whose variance grows with the number of inputs \(N\). To compare NP and WP at the same effective output perturbation strength, the node perturbation variance is therefore scaled by \(N\), equivalently the node perturbation standard deviation is scaled by \(\sqrt{N}\). \textcite{zuge2023weight} perform a related perturbation-strength matching in temporally extended tasks, but in their formulation the weight perturbation variance is adjusted relative to an effective input dimension so that WP and NP have comparable effective output perturbation strength.
+
+These fan-in or effective-dimension scalings are important because they recognize that the effect of a perturbation depends on the size of the layer feeding into a node. However, they remain expectation-level corrections: the scale is determined by the number of incoming units or an effective dimension, not by the actual activity vector presented to the neuron on a given sample. This distinction becomes important in the original contribution of this thesis, where the node perturbation scale is instead chosen from the pre-activation noise distribution induced by Gaussian weight perturbation.
 
 Table~\ref{tab:np_update_rules} compares the learning rules used in different perturbation-based methods. The table shows where noise is added, how the noise is sampled, and how the weights are updated. We use \(\sigma\) for the noise size in all papers, even when the original paper uses another symbol. We use \(\Delta \ell\) to denote the scalar global learning signal, typically computed from the difference between noisy and unperturbed performance, although the exact estimator varies between papers.
 
-\begin{table}[ht]
+\begin{table}[!htbp]
 \centering
 \scriptsize
 \caption{Comparison of perturbation noise sampling in the literature.}
@@ -40,7 +391,7 @@ Table~\ref{tab:np_update_rules} compares the learning rules used in different pe
 \textbf{Notes} \\
 \midrule
 
-\cite{hiratani2022stability}
+\textcite{hiratani2022stability}
 & Node perturbation; weight-normalized node perturbation
 & Pre-activation
 & \(\sigma \xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
@@ -48,38 +399,38 @@ Table~\ref{tab:np_update_rules} compares the learning rules used in different pe
 
 \addlinespace
 
-\cite{dalm2024effective}
+\textcite{dalm2024effective}
 & Node perturbation; iterative node perturbation; activity-based node perturbation
 & Pre-activation
 & \(\xi_l \sim \mathcal{N}(0,\sigma^2 I_l)\)
 & Decorrelated versions exist, they use the same distribution. \\
 
-\cite{flower1992summed}
+\textcite{flower1992summed}
 & Neuron perturbation; weight perturbation; summed weight neuron perturbation
 & Weight / pre-activation
 & \(\epsilon_i,\epsilon_{ij} \in \{-\sigma,\sigma\}\)
 & Random-polarity finite-difference perturbations. \\
 
-\cite{widrow1990thirty}
+\textcite{widrow1990thirty}
 & Madaline Rule III
 & Pre-activation
 & Small perturbation \(\epsilon_i\); no distribution specified
 & Early finite-difference neuron perturbation. \\
 
-\cite{cauwenberghs1993fast}
+\textcite{cauwenberghs1993fast}
 & Stochastic error descent
 & Weights
 & \(\mathbb{E}[\epsilon_i\epsilon_j]=\sigma^2\delta_{ij}\)
 & Any zero-mean, uncorrelated perturbations with equal variance; simulations use \(\epsilon_i=\sigma z_i,\; z_i\sim\mathrm{Unif}\{-1,1\}\). \\
 
-\cite{werfel2005learning}
+\textcite{werfel2005learning}
 & Node perturbation; weight perturbation
 & Output / weight
 & NP: \(\boldsymbol{\epsilon} \sim \mathcal{N}(0,N\sigma^2 I_M)\);
 WP: \(\boldsymbol{\epsilon} \sim \mathcal{N}(0,\sigma^2 I_{MN})\)
 & Node noise scaled by \(\sqrt{N}\) to match the output noise induced by weight perturbation. \\
 
-\cite{zuge2023weight}
+\textcite{zuge2023weight}
 & Weight perturbation; node perturbation
 & Weight / pre-activation
 & WP: \(\epsilon_{ij}^{\mathrm{WP}} \sim
@@ -88,7 +439,7 @@ NP: \(\epsilon_{it}^{\mathrm{NP}} \sim
 \mathcal{N}(0,\sigma_{\mathrm{eff}}^2)\)
 & WP variance matched to NP output variance. \(N_{\mathrm{eff}}\): effective input dimension. \(a\): error convergence factor. \\
 
-\cite{cho2011node}
+\textcite{cho2011node}
 & Node perturbation; noisy-baseline node perturbation
 & Output
 & \(\epsilon_i \sim \mathcal{N}(0,\sigma_\epsilon^2)\),
@@ -97,7 +448,7 @@ NP: \(\epsilon_{it}^{\mathrm{NP}} \sim
 
 \addlinespace
 
-\cite{hara2017statistical}
+\textcite{hara2017statistical}
 & Single node perturbation; double node perturbation
 & Output
 & \(\epsilon_k \sim \mathcal{N}(0,\sigma_\epsilon^2)\),
@@ -107,23 +458,24 @@ NP: \(\epsilon_{it}^{\mathrm{NP}} \sim
 \bottomrule
 \end{tabularx}
 \end{table}
+\FloatBarrier
 
 
 For compactness, let \(U_k\) denote the update direction, so that weights are updated as
 \(W_k \leftarrow W_k - \eta_W U_k\). For decorrelated variants, \(x_{k-1}^{\star}=R_{k-1}x_{k-1}\), and the decorrelation matrix is updated using
 \(R_k \leftarrow R_k-\eta_R\left(x_k^\star (x_k^\star)^\top-\operatorname{diag}((x_k^\star)^2)\right)R_k\).
 
-\begin{table}[ht]
+\begin{sidewaystable}[!p]
 \centering
 \scriptsize
 \caption{Comparison of perturbation-based update rules in the literature.}
 \label{tab:np_update_rules_full}
 
-\begin{tabularx}{\textwidth}{
-    >{\raggedright\arraybackslash}p{1.9cm}
-    >{\raggedright\arraybackslash}p{2.6cm}
-    >{\raggedright\arraybackslash}p{1.6cm}
-    >{\centering\arraybackslash}p{2.5cm}
+\begin{tabularx}{\textheight}{
+    >{\raggedright\arraybackslash}p{2.3cm}
+    >{\raggedright\arraybackslash}p{3.0cm}
+    >{\raggedright\arraybackslash}p{2.0cm}
+    >{\centering\arraybackslash}p{3.2cm}
     >{\raggedright\arraybackslash}X
 }
 \toprule
@@ -134,7 +486,7 @@ For compactness, let \(U_k\) denote the update direction, so that weights are up
 \textbf{Update rule} \\
 \midrule
 
-\cite{hiratani2022stability}
+\textcite{hiratani2022stability}
 & Node perturbation
 & Pre-activation
 & \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
@@ -144,7 +496,7 @@ For compactness, let \(U_k\) denote the update direction, so that weights are up
 
 \addlinespace
 
-\cite{hiratani2022stability}
+\textcite{hiratani2022stability}
 & Weight-normalized node perturbation
 & Pre-activation
 & \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
@@ -161,7 +513,7 @@ For compactness, let \(U_k\) denote the update direction, so that weights are up
 \midrule
 \addlinespace
 
-\cite{dalm2024effective}
+\textcite{dalm2024effective}
 & Node perturbation
 & Pre-activation
 & \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
@@ -171,7 +523,7 @@ For compactness, let \(U_k\) denote the update direction, so that weights are up
 
 \addlinespace
 
-\cite{dalm2024effective}
+\textcite{dalm2024effective}
 & Iterative node perturbation
 & Pre-activation
 & \(v_k \sim \mathcal{N}(0,I_k)\), perturbation \(h v_k\)
@@ -182,7 +534,7 @@ x_{k-1}^{\top}\) \\
 
 \addlinespace
 
-\cite{dalm2024effective}
+\textcite{dalm2024effective}
 & Activity-based node perturbation
 & Pre-activation
 & \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
@@ -193,7 +545,7 @@ x_{k-1}^{\top}\) \\
 
 \addlinespace
 
-\cite{dalm2024effective}
+\textcite{dalm2024effective}
 & Decorrelated node perturbation
 & Pre-activation
 & \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
@@ -203,7 +555,7 @@ x_{k-1}^{\top}\) \\
 
 \addlinespace
 
-\cite{dalm2024effective}
+\textcite{dalm2024effective}
 & Decorrelated iterative node perturbation
 & Pre-activation
 & \(v_k \sim \mathcal{N}(0,I_k)\), perturbation \(h v_k\)
@@ -214,7 +566,7 @@ x_{k-1}^{\top}\) \\
 
 \addlinespace
 
-\cite{dalm2024effective}
+\textcite{dalm2024effective}
 & Decorrelated activity-based node perturbation
 & Pre-activation
 & \(\xi_k \sim \mathcal{N}(0,\sigma^2 I_k)\)
@@ -227,7 +579,7 @@ x_{k-1}^{\top}\) \\
 \midrule
 \addlinespace
 
-\cite{flower1992summed}
+\textcite{flower1992summed}
 & Neuron perturbation
 & Pre-activation
 & \(\epsilon_i = \sigma z_i,\; z_i \sim \mathrm{Unif}\{-1,1\}\)
@@ -238,7 +590,7 @@ x_j\) \\
 
 \addlinespace
 
-\cite{flower1992summed}
+\textcite{flower1992summed}
 & Weight perturbation
 & Weight
 & \(\epsilon_{ij} = \sigma z_{ij},\; z_{ij} \sim \mathrm{Unif}\{-1,1\}\)
@@ -248,7 +600,7 @@ x_j\) \\
 
 \addlinespace
 
-\cite{flower1992summed}
+\textcite{flower1992summed}
 & Summed weight neuron perturbation
 & Incoming weights
 & \(\epsilon_{ij} = \sigma z_{ij},\; z_{ij} \sim \mathrm{Unif}\{-1,1\}\)
@@ -262,7 +614,7 @@ r_i = \sum_m \epsilon_{im}x_m\) \\
 \midrule
 \addlinespace
 
-\cite{widrow1990thirty}
+\textcite{widrow1990thirty}
 & Madaline Rule III
 & Pre-activation
 & Small perturbation \(\epsilon_i\); no distribution specified
@@ -274,7 +626,7 @@ x_j\) \\
 \midrule
 \addlinespace
 
-\cite{cauwenberghs1993fast}
+\textcite{cauwenberghs1993fast}
 & Stochastic error descent
 & Weights
 & \(\mathbb{E}[\epsilon_i\epsilon_j]=\sigma^2\delta_{ij}\)
@@ -285,7 +637,7 @@ x_j\) \\
 \midrule
 \addlinespace
 
-\cite{werfel2005learning}
+\textcite{werfel2005learning}
 & Node perturbation
 & Output
 & \(\boldsymbol{\epsilon} \sim \mathcal{N}(0,N\sigma^2 I_M)\)
@@ -295,7 +647,7 @@ x_j\) \\
 
 \addlinespace
 
-\cite{werfel2005learning}
+\textcite{werfel2005learning}
 & Weight perturbation
 & Weight
 & \(\boldsymbol{\epsilon} \sim \mathcal{N}(0,\sigma^2 I_{MN})\)
@@ -307,7 +659,7 @@ x_j\) \\
 \midrule
 \addlinespace
 
-\cite{zuge2023weight}
+\textcite{zuge2023weight}
 & Weight perturbation
 & Weight
 & \(\epsilon_{ij}^{\mathrm{WP}} \sim
@@ -321,7 +673,7 @@ x_j\) \\
 
 \addlinespace
 
-\cite{zuge2023weight}
+\textcite{zuge2023weight}
 & Node perturbation
 & Pre-activation
 & \(\epsilon_{it}^{\mathrm{NP}} \sim
@@ -334,7 +686,7 @@ x_j\) \\
 \addlinespace
 \midrule
 \addlinespace
-\cite{cho2011node}
+\textcite{cho2011node}
 & Node perturbation
 & Output
 & \(\epsilon_i \sim \mathcal{N}(0,\sigma_\epsilon^2)\)
@@ -344,7 +696,7 @@ x_j\) \\
 
 \addlinespace
 
-\cite{cho2011node}
+\textcite{cho2011node}
 & Noisy-baseline node perturbation
 & Output
 & \(\epsilon_i \sim \mathcal{N}(0,\sigma_\epsilon^2)\),
@@ -359,7 +711,7 @@ x_j\) \\
 \midrule
 \addlinespace
 
-\cite{hara2017statistical}
+\textcite{hara2017statistical}
 & Single node perturbation
 & Output
 & \(\epsilon_k \sim \mathcal{N}(0,\sigma_\epsilon^2)\)
@@ -371,7 +723,7 @@ x_j\) \\
 
 \addlinespace
 
-\cite{hara2017statistical}
+\textcite{hara2017statistical}
 & Double node perturbation
 & Output
 & \(\epsilon_k \sim \mathcal{N}(0,\sigma_\epsilon^2)\),
@@ -388,4 +740,348 @@ x_j\) \\
 
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{sidewaystable}
+\FloatBarrier
+
+\textbf{TODO:} Add an explanation of why node perturbation is also biologically plausible.
+
+\subsubsection{Existing comparisons of weight and node perturbation}
+
+Existing comparisons of weight perturbation and node perturbation are usually framed around the dimensionality of the perturbation space. In weight perturbation, noise is added to each individual weight, whereas in node perturbation, noise is added to units or pre-activations and then translated into weight updates using presynaptic activity. Since a network typically has many more weights than nodes, NP is often argued to explore a lower-dimensional stochastic space and therefore learn faster or with less noisy updates. This argument is stated explicitly by \textcite{cho2011node}, who note that in single-layer feedforward networks the perturbation dimensionality of WP exceeds that of NP by a factor equal to the number of input units, and therefore cite \textcite{werfel2005learning} for the corresponding learning-speed advantage of NP.
+
+The main analytical support for this dimensionality argument comes from \textcite{werfel2005learning}. They analyze online learning in a linear perceptron with \(N\) inputs and \(M\) outputs, comparing direct gradient descent, node perturbation, and weight perturbation. In this setting, NP perturbs an \(M\)-dimensional output vector, whereas WP perturbs the full \(MN\)-dimensional weight matrix. When the scalar update parameter is chosen optimally, they find that NP is slower than direct gradient descent by a factor equal to the number of output units, while WP is slower by an additional factor equal to the number of input units. This provides a precise setting in which the lower perturbation dimension of NP leads to faster learning than WP.
+
+Later work often uses this result as the standard explanation for why NP is expected to be more efficient than WP. For example, \textcite{hiratani2022stability} describe WP as noisier than NP in the vanilla setting, while also noting that WP is a zeroth-order optimization method and therefore expected to scale poorly in high-dimensional parameter spaces. \textcite{dalm2024effective} similarly describe WP as searching a larger space because there are many more weights than nodes, which slows learning. In this literature, the comparison is therefore usually not that WP and NP estimate fundamentally different objectives, but that WP estimates the relevant update using a higher-dimensional perturbation and is therefore expected to have a worse signal-to-noise trade-off.
+
+The dimensionality argument is not universal, however, and \textcite{zuge2023weight} show that WP can perform similarly to or better than NP in temporally extended tasks. Their key observation is that temporal structure changes the effective perturbation dimensions: WP perturbs the weights once per trial, while standard NP must perturb node inputs over time in order to explore time-dependent trajectories. In low-dimensional temporal tasks, WP-induced output perturbations are constrained to realizable trajectories, whereas NP may inject arbitrary time-dependent perturbations that contain components irrelevant or impossible for the network to realize. Their analysis and simulations therefore show that task structure can reverse the usual preference for NP, making WP a competitive baseline rather than merely an inefficient alternative.
+
+\subsubsection{Literature gap}
+
+The existing literature leaves the relationship between WP and NP somewhat unresolved. On the one hand, NP is often presented as the more efficient method because it perturbs a lower-dimensional space: nodes rather than weights. This intuition is supported by the linear perceptron analysis of \textcite{werfel2005learning}, where NP learns faster than WP by a factor related to the number of input units. On the other hand, this conclusion is not universal. \textcite{zuge2023weight} show that in temporally extended tasks, WP can perform similarly to or better than NP, because temporal structure changes the effective perturbation dimensions. Thus, the literature contains both a standard argument for why NP should be better and important examples where that argument breaks down.
+
+What is missing is a more direct theoretical comparison of WP and NP in the nonlinear multilayer setting used by modern neural networks. Existing comparisons often rely on counting perturbation dimensions, analyzing simplified linear models, or studying specific task structures. These results are valuable, but they do not fully explain whether the apparent advantage of NP comes only from perturbing fewer variables, or whether there is a deeper estimator-level relationship between node-level and weight-level perturbations. This motivates the analysis in the next section, where we compare WP and NP by first asking what kind of node-level noise is actually induced when the weights of a nonlinear multilayer perceptron are perturbed.
+
+This literature review establishes the current state of perturbation-based learning and motivates the theoretical contribution developed next.
+
+\subsection{Original contribution to theory development}
+
+\subsubsection{Overview of the contribution}
+
+The literature reviewed above leaves the relationship between weight perturbation and node perturbation only partially resolved. Existing work suggests that NP is often preferable because it perturbs a lower-dimensional space, but this argument is not a direct comparison of the two estimators in nonlinear multilayer networks. To make this comparison more precise, we start from WP and ask what effect Gaussian weight perturbations have at the level of the pre-activations.
+
+This leads to three theoretical contributions. First, we derive the conditional distribution of the pre-activation noise induced by Gaussian WP in a nonlinear multilayer perceptron. Second, we use this induced noise distribution to define input-scaled node perturbation (IS-NP), a node perturbation method whose perturbation scale depends on the norm of the incoming activation vector. Third, we show that IS-NP matches WP in expectation but has lower or equal variance, because the IS-NP estimator can be viewed as a conditioned version of the WP estimator.
+
+Together, these results provide a direct theoretical reason to prefer IS-NP over WP when the goal is to estimate the same expected update with lower variance. The comparison with existing NP variants is different: the theory suggests that IS-NP should be better scaled than fixed-variance NP and fan-in-scaled NP, but it does not prove that IS-NP has lower variance or better learning dynamics than those methods. This motivates the empirical evaluation later in the thesis, where IS-NP is compared against WP, vanilla NP, and fan-in-scaled NP.
+
+\subsubsection{Pre-activation noise induced by WP}
+
+The first step in comparing WP and NP is to express the effect of WP at the same level where NP applies perturbations: the pre-activations. This allows us to ask whether a node-level perturbation rule can reproduce the effect of weight perturbation without sampling all individual weight perturbations.
+
+Recall that in the previous section, we modeled the parameters as $\boldsymbol{\theta} \sim \mathcal{N}(\boldsymbol{\mu}, \sigma^2 \mathbf{I})$. For neural networks, this corresponds to perturbing each weight independently as
+\[
+\mathbf{W}^{\ell\prime} = \mathbf{W}^\ell + \sigma \mathbf{E}^\ell,
+\qquad
+E^\ell_{ij} \sim \mathcal{N}(0,1)\ \text{i.i.d.}
+\]
+
+
+The pre-activation at neuron $j$ in layer $\ell$ is given by
+\[
+z^\ell_j = \sum_i W^\ell_{ij} x^{\ell-1}_i.
+\]
+After perturbation, this becomes
+
+\[
+z^{\ell\prime}_j =
+\sum_i W^{\ell\prime}_{ij} x^{\ell-1\prime}_i
+=
+\sum_i (W^\ell_{ij} + \sigma E^\ell_{ij}) \, x^{\ell-1\prime}_i
+\]
+This expression separates into a deterministic component and a stochastic component induced by the weight perturbations:
+\[
+z^{\ell\prime}_j
+=
+\sum_i W^\ell_{ij} x^{\ell-1\prime}_i
++
+\sigma \sum_i E^\ell_{ij} x^{\ell-1\prime}_i.
+\]
+
+Define the induced pre-activation noise as
+\begin{equation}
+n^\ell_j := \sigma \sum_i E^\ell_{ij} x^{\ell-1\prime}_i.
+\label{eq:preact_noise}
+\end{equation}
+
+We can now write the full pre-activation in compact form as
+\[
+z^{\ell\prime}_j = (\mathbf{W}^\ell \mathbf{x}^{\ell-1\prime})_j + n^\ell_j,
+\]
+where 
+
+\[
+(\mathbf{W}^\ell \mathbf{x}^{\ell-1\prime})_j = \sum_i W^\ell_{ij} x^{\ell-1\prime}_i.
+\]
+Now condition on the incoming perturbed activations $\mathbf{x}^{\ell-1\prime}$. Under this conditioning, the coefficients $x^{\ell-1\prime}_i$ are fixed, while $E^\ell_{ij}$ remain independent standard Gaussians. From \eqref{eq:preact_noise}, it follows that $n^\ell_j$ is a linear combination of independent Gaussian variables, and therefore Gaussian with
+\begin{equation}
+n^\ell_j \mid \mathbf{x}^{\ell-1\prime}
+\sim
+\mathcal{N}\!\left(0,\sigma^2 \sum_i (x^{\ell-1\prime}_i)^2\right)
+=
+\mathcal{N}\!\left(0,\sigma^2 \|\mathbf{x}^{\ell-1\prime}\|^2\right).
+\label{eq:preact_noise_dist}
+\end{equation}
+
+Thus, weight perturbation induces Gaussian noise at the pre-activations, with variance proportional to the squared norm of the incoming activations. In other words, the effect of perturbing the weights can be fully characterized as injecting structured Gaussian noise directly into the pre-activations.
+
+This shows that Gaussian WP does not induce arbitrary node noise. It induces node noise whose variance depends on the squared norm of the incoming activation vector. This observation is the basis for the IS-NP rule introduced next.
+
+\subsubsection{Input-scaled node perturbation}
+
+The induced pre-activation noise derived above suggests a natural modification of standard node perturbation. In standard node perturbation, noise is injected directly at the level of the pre-activations, typically using a fixed perturbation scale,
+\[
+z^{\ell\prime}_j = z^\ell_j + \epsilon^\ell_j,
+\qquad
+\epsilon^\ell_j \sim \mathcal{N}(0, \sigma^2),
+\]
+and a gradient estimate is constructed from the resulting change in loss~\parencite{hiratani2022stability}. This fixed-scale formulation treats the perturbation scale as a global or layerwise hyperparameter, independent of the actual activity vector feeding into the neuron.
+
+A related variant is fan-in-scaled node perturbation, where the perturbation scale is adjusted according to the number of incoming units. For a layer with input dimension \(d_{\ell-1}\), this corresponds to sampling noise with standard deviation proportional to \(\sqrt{d_{\ell-1}}\), or \(\sqrt{d_{\ell-1}+1}\) if the bias is included as an additional input. This accounts for the fact that, under simplifying assumptions, the norm of the incoming activation vector grows with the square root of the layer width. However, this remains an expectation-level correction: the scale depends on the size of the layer, not on the actual incoming activation vector for a given sample.
+
+The derivation in the previous section motivates a more direct scaling rule. Since Gaussian weight perturbation induces pre-activation noise with variance proportional to \(\|\mathbf{x}^{\ell-1\prime}\|^2\), we define input-scaled node perturbation (IS-NP) by sampling node noise from this induced distribution:
+
+\[
+z^{\ell\prime} = \mathbf{W}^\ell \mathbf{x}^{\ell-1\prime} + \mathbf{n}^\ell,
+\qquad
+n^\ell_j \mid \mathbf{x}^{\ell-1\prime}
+\sim
+\mathcal{N}\!\left(0,\sigma^2 \|\mathbf{x}^{\ell-1\prime}\|^2\right).
+\]
+Thus, unlike vanilla NP, the perturbation scale is not fixed. Unlike fan-in-scaled NP, it is not determined only by the number of incoming units. Instead, IS-NP scales the perturbation by the actual norm of the incoming activation vector at each layer and for each input example.
+
+We first consider the effect of this perturbation at the level of the pre-activations. Since
+\[
+n^\ell_j \mid \mathbf{x}^{\ell-1\prime}
+\sim
+\mathcal{N}\!\left(0,\sigma^2 \|\mathbf{x}^{\ell-1\prime}\|^2\right),
+\]
+the corresponding score-function term for the pre-activation perturbation is proportional to
+\[
+\frac{n^\ell_j}{\sigma^2 \|\mathbf{x}^{\ell-1\prime}\|^2}.
+\]
+The resulting gradient estimate with respect to \(z^\ell_j\) is therefore
+\[
+\widehat{g}_{z^\ell_j}
+=
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)
+\frac{n^\ell_j}{\sigma^2 \|\mathbf{x}^{\ell-1\prime}\|^2}.
+\]
+
+Using the chain rule,
+\[
+\frac{\partial z^\ell_j}{\partial W^\ell_{ij}} = x^{\ell-1\prime}_i,
+\]
+we obtain the corresponding estimator for the weights:
+\begin{equation}
+\widehat{g}^{\mathrm{IS\text{-}NP}}_{ij,\ell}
+=
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)
+\frac{n^\ell_j x^{\ell-1\prime}_i}{\sigma^2 \|\mathbf{x}^{\ell-1\prime}\|^2}.
+\label{eq:isnp_estimator}
+\end{equation}
+
+Applying gradient descent, the update rule becomes
+\begin{equation}
+\Delta W^\ell_{ij}
+=
+-\eta
+\left(L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi}) - b\right)
+\frac{n^\ell_j x^{\ell-1\prime}_i}{\sigma^2 \|\mathbf{x}^{\ell-1\prime}\|^2}.
+\label{eq:isnp_update}
+\end{equation}
+
+Intuitively, IS-NP injects noise at the pre-activations with a scale matched to the effect that weight perturbation would have produced at that neuron. The resulting scalar learning signal is then distributed across the incoming weights in proportion to the corresponding presynaptic activities. Large incoming activations therefore receive a larger share of the update, while small incoming activations receive a smaller share.
+
+This construction makes IS-NP different from both vanilla NP and fan-in-scaled NP. Vanilla NP uses the same perturbation scale regardless of the input activity. Fan-in-scaled NP corrects this scale only through the width of the incoming layer. IS-NP instead uses the actual incoming activation norm, making the node perturbation scale sample-dependent and layer-dependent. The next section shows that this choice is not only intuitively motivated, but also makes IS-NP directly comparable to WP in expectation.
+
+\subsubsection{Expected equivalence between WP and IS-NP}
+
+Before comparing the variance of WP and IS-NP, we first show that the two estimators are matched in expectation. This is important because a variance comparison is only meaningful if the estimators target the same expected update. The key observation is that IS-NP can be obtained by conditioning the WP estimator on the pre-activation noise induced by the weight perturbations.
+
+Recall that the WP gradient estimator for weight \(W^\ell_{ij}\) can be written as
+\begin{equation}
+\widehat{g}^{\mathrm{WP}}_{ij,\ell}
+=
+\left(L(\boldsymbol{\mu}+\sigma\boldsymbol{\xi}) - b\right)
+\frac{E^\ell_{ij}}{\sigma},
+\label{eq:wp_estimator_component}
+\end{equation}
+where \(E^\ell_{ij}\sim\mathcal{N}(0,1)\) is the standard Gaussian perturbation applied to the corresponding weight. Let \(N=(n^1,\dots,n^L)\) denote the full field of pre-activation noises induced by WP. Conditioned on \(N\), the perturbed forward trajectory is fixed, since the network evolves according to
+\[
+z^{\ell\prime} = \mathbf{W}^\ell \mathbf{x}^{\ell-1\prime} + \mathbf{n}^\ell.
+\]
+Therefore, the loss difference \(L(\boldsymbol{\mu}+\sigma\boldsymbol{\xi})-b\) and the activations \(\mathbf{x}^{\ell-1\prime}\) are deterministic functions of \(N\).
+
+We now compute the conditional expectation of the WP estimator given the induced pre-activation noise. From Eq.~\eqref{eq:preact_noise},
+\[
+n^\ell_j = \sigma \sum_i E^\ell_{ij} x^{\ell-1\prime}_i.
+\]
+Since the vector \(E^\ell_{\cdot j}\) is Gaussian, standard Gaussian conditioning gives
+\[
+\mathbb{E}\!\left[E^\ell_{ij}\mid N\right]
+=
+\frac{x^{\ell-1\prime}_i}{\sigma \|\mathbf{x}^{\ell-1\prime}\|^2}
+n^\ell_j.
+\]
+Substituting this into Eq.~\eqref{eq:wp_estimator_component} gives
+\[
+\mathbb{E}\!\left[
+\widehat{g}^{\mathrm{WP}}_{ij,\ell}
+\mid N
+\right]
+=
+\left(L(\boldsymbol{\mu}+\sigma\boldsymbol{\xi}) - b\right)
+\frac{1}{\sigma}
+\mathbb{E}\!\left[E^\ell_{ij}\mid N\right].
+\]
+Hence,
+\[
+\mathbb{E}\!\left[
+\widehat{g}^{\mathrm{WP}}_{ij,\ell}
+\mid N
+\right]
+=
+\left(L(\boldsymbol{\mu}+\sigma\boldsymbol{\xi}) - b\right)
+\frac{n^\ell_j x^{\ell-1\prime}_i}
+{\sigma^2 \|\mathbf{x}^{\ell-1\prime}\|^2}.
+\]
+By Eq.~\eqref{eq:isnp_estimator}, this is exactly the IS-NP estimator:
+\begin{equation}
+\mathbb{E}\!\left[
+\widehat{g}^{\mathrm{WP}}_{ij,\ell}
+\mid N
+\right]
+=
+\widehat{g}^{\mathrm{IS\text{-}NP}}_{ij,\ell}.
+\label{eq:isnp_conditional_expectation}
+\end{equation}
+
+Taking expectation on both sides and applying the tower property gives
+\[
+\mathbb{E}\!\left[
+\widehat{g}^{\mathrm{WP}}_{ij,\ell}
+\right]
+=
+\mathbb{E}\!\left[
+\mathbb{E}\!\left[
+\widehat{g}^{\mathrm{WP}}_{ij,\ell}
+\mid N
+\right]
+\right]
+=
+\mathbb{E}\!\left[
+\widehat{g}^{\mathrm{IS\text{-}NP}}_{ij,\ell}
+\right].
+\]
+Thus, WP and IS-NP produce the same expected gradient estimate for each weight. The difference between them is not the expected update direction, but the amount of stochastic variability around that expectation. This is the basis for the variance comparison in the next section.
+
+\subsubsection{Variance reduction theorem}
+
+The previous section showed that IS-NP and WP are matched in expectation. We now show that they differ in variance. More specifically, IS-NP can be viewed as the conditional expectation of WP given the induced pre-activation noise field. This means that IS-NP removes weight-noise variability that affects the WP update but does not affect the actual perturbed forward pass. The result is a direct variance reduction by the law of total variance.
+
+\begin{proposition}
+For Gaussian weight perturbations and the corresponding input-scaled node perturbation estimator defined in Eq.~\eqref{eq:isnp_estimator}, the coordinate-wise variance of IS-NP is no larger than that of WP:
+\[
+\mathrm{Var}\!\left(\widehat{g}^{\mathrm{IS\text{-}NP}}_{ij,\ell}\right)
+\le
+\mathrm{Var}\!\left(\widehat{g}^{\mathrm{WP}}_{ij,\ell}\right).
+\]
+\end{proposition}
+
+\begin{proof}
+We consider the weight perturbation estimator in \eqref{eq:wp_estimator_component}, and analyze its variance by conditioning on the induced pre-activation noise. Recall from \eqref{eq:preact_noise} that $n^\ell_j$ is a linear combination of the weight perturbations.
+
+Condition on the full induced noise field $N=(n^1,\dots,n^L)$. Since the perturbed forward pass satisfies
+\[
+z^{\ell\prime} = W^\ell x^{\ell-1\prime} + n^\ell,
+\]
+the entire perturbed trajectory $(x^{1\prime},\dots,x^{L\prime})$ is uniquely determined by $N$. Hence both the learning signal $\delta L(N)$ and all activations $x^{\ell\prime}$ are deterministic given $N$.
+
+Now fix $(i,j,\ell)$. From \eqref{eq:preact_noise}, and since $E^\ell_{\cdot j}$ is Gaussian, standard Gaussian regression gives
+\[
+\mathbb{E}[E^\ell_{ij}\mid N]
+=
+\frac{x^{\ell-1\prime}_i}{\sigma \|x^{\ell-1\prime}\|^2}\, n^\ell_j.
+\]
+Therefore,
+\[
+\mathbb{E}[\widehat{g}^{\mathrm{WP}}_{ij,\ell}\mid N]
+=
+\frac{\delta L(N)}{\sigma}\,
+\mathbb{E}[E^\ell_{ij}\mid N]
+=
+\delta L(N)\,
+\frac{n^\ell_j x^{\ell-1\prime}_i}{\sigma^2 \|x^{\ell-1\prime}\|^2}
+=
+\widehat{g}^{\mathrm{IS\text{-}NP}}_{ij,\ell}.
+\]
+
+Applying the law of total variance,
+\[
+\mathrm{Var}(\widehat{g}^{\mathrm{WP}}_{ij,\ell})
+=
+\mathrm{Var}\!\bigl(\mathbb{E}[\widehat{g}^{\mathrm{WP}}_{ij,\ell}\mid N]\bigr)
++
+\mathbb{E}\!\bigl[\mathrm{Var}(\widehat{g}^{\mathrm{WP}}_{ij,\ell}\mid N)\bigr].
+\]
+Using the identity above,
+\[
+\mathrm{Var}(\widehat{g}^{\mathrm{WP}}_{ij,\ell})
+=
+\mathrm{Var}(\widehat{g}^{\mathrm{IS\text{-}NP}}_{ij,\ell})
++
+\mathbb{E}\!\bigl[\mathrm{Var}(\widehat{g}^{\mathrm{WP}}_{ij,\ell}\mid N)\bigr].
+\]
+Since the second term is nonnegative, it follows that
+\[
+\mathrm{Var}(\widehat{g}^{\mathrm{IS\text{-}NP}}_{ij,\ell})
+\le
+\mathrm{Var}(\widehat{g}^{\mathrm{WP}}_{ij,\ell}).
+\qedhere
+\]
+\end{proof}
+
+This result gives a direct theoretical comparison between WP and IS-NP. Both estimators produce the same expected update, but WP contains additional randomness from the individual weight perturbations that is irrelevant once the induced pre-activation noise is fixed. In contrast, IS-NP samples directly at the pre-activation level and therefore removes this redundant variability.
+
+Intuitively, many different weight-noise realizations can produce the same pre-activation noise at a neuron. Once the pre-activation noise field \(N\) is fixed, the perturbed activations and the scalar learning signal are already determined. Any remaining variation in the individual weight perturbations changes the WP update without changing the network trajectory or the loss. This extra randomness contributes to the variance of WP but not to IS-NP.
+
+Thus, IS-NP can be interpreted as a Rao--Blackwellized version of WP. It preserves the expected update while reducing the estimator variance. This provides a theoretical reason to prefer IS-NP over WP when the goal is to estimate the same perturbation-based learning signal with less stochastic noise. The next section discusses how this input-scaled construction relates to existing node perturbation variants, where the comparison is motivated by scaling considerations rather than by the variance theorem above.
+
+\subsubsection{Why IS-NP may improve over existing NP variants}
+
+The variance result above gives a theoretical reason to prefer IS-NP over WP, but it does not by itself prove that IS-NP is better than other node perturbation methods. Vanilla NP and fan-in-scaled NP use different perturbation distributions, and are therefore not simply higher-variance versions of the exact same estimator. However, the induced-noise derivation gives a clear reason to expect IS-NP to be better scaled than both of these existing NP variants.
+
+In vanilla NP, the pre-activation noise is sampled with a fixed variance,
+\[
+\epsilon^\ell_j \sim \mathcal{N}(0,\sigma^2),
+\]
+independent of the activity vector feeding into the neuron. This means that the same absolute perturbation scale is used whether the incoming activation norm is large or small. From the perspective of estimating weight-level gradients, this is potentially problematic. If \(\|\mathbf{x}^{\ell-1}\|\) is small, fixed-variance NP may create a large change in the pre-activation even though a comparable weight perturbation would have had very little effect. Conversely, if \(\|\mathbf{x}^{\ell-1}\|\) is large, the same fixed node perturbation may be too small relative to the perturbation that weight noise would naturally induce. In both cases, the perturbation scale is mismatched to the sensitivity of the pre-activation to its incoming weights.
+
+Fan-in-scaled NP partially addresses this issue by scaling the perturbation according to the number of incoming units. If the incoming activations are approximately independent and similarly distributed, then the expected squared norm of the incoming activity vector grows with the layer width. In that case, using a perturbation scale proportional to \(\sqrt{d_{\ell-1}}\), or \(\sqrt{d_{\ell-1}+1}\) when including the bias, can be interpreted as an average correction for the size of the incoming layer. This makes fan-in scaling more closely aligned with the perturbation scale induced by WP than vanilla NP.
+
+However, fan-in scaling is still only an expectation-level correction. It assumes that the norm of the incoming activation vector is well represented by the number of incoming units, which need not hold for individual samples, different layers, or unnormalised inputs. Two activation vectors with the same dimension can have very different norms, and therefore a weight perturbation would induce very different pre-activation noise in the two cases. Fan-in-scaled NP ignores this sample-wise variation.
+
+IS-NP instead scales the perturbation using the actual incoming activation norm,
+\[
+n^\ell_j \mid \mathbf{x}^{\ell-1}
+\sim
+\mathcal{N}\!\left(0,\sigma^2\|\mathbf{x}^{\ell-1}\|^2\right).
+\]
+This makes the perturbation scale both layer-dependent and sample-dependent. When the incoming activation norm is small, IS-NP applies smaller node perturbations; when the norm is large, it applies larger perturbations. In this sense, IS-NP can be viewed as a sample-wise version of the correction that fan-in scaling only approximates on average.
+
+This gives a principled reason to expect IS-NP to improve over vanilla NP and fan-in-scaled NP, especially when activation norms vary substantially across samples or layers. Nevertheless, this is not a formal dominance result. The variance theorem compares IS-NP to WP under a matched perturbation construction, while the comparison to vanilla and fan-in-scaled NP depends on how the different perturbation scales affect learning in practice. The empirical section therefore tests whether the improved scaling of IS-NP leads to better directional alignment, lower estimator variance, and improved training performance relative to existing NP variants.
+
+\subsubsection{Theoretical summary and empirical hypotheses}
+
+The analysis above establishes IS-NP as a variance-reduced version of WP. Starting from Gaussian weight perturbation, we derived the pre-activation noise induced by perturbing the weights and used this distribution to define IS-NP. This construction makes IS-NP matched to WP in expectation, while the variance reduction theorem shows that IS-NP has coordinate-wise variance no larger than WP. This is a useful theoretical contribution in itself: instead of relying only on the usual dimensionality argument that NP perturbs fewer variables than WP, we obtain a direct estimator-level comparison showing that IS-NP preserves the expected WP update while removing redundant weight-level randomness.
+
+The comparison with existing NP variants is more empirical. The theorem does not prove that IS-NP must outperform vanilla NP or fan-in-scaled NP, since these methods use different perturbation distributions rather than being unconditioned versions of the same estimator. However, the induced-noise derivation suggests that IS-NP should be better scaled: vanilla NP uses a fixed perturbation scale, fan-in-scaled NP corrects only for layer width, while IS-NP uses the actual incoming activation norm for each sample and layer. The empirical section therefore tests whether IS-NP improves over WP, vanilla NP, and fan-in-scaled NP in terms of learning curves, directional alignment with the backpropagation gradient, estimator variance, and stability.
