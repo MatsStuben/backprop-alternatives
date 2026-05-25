@@ -1,12 +1,12 @@
 \section{Method}
-
+In theory, there is no difference between theory and practice. In practice, there is.
 \subsection{Empirical evaluation strategy}
 
-The empirical evaluation is designed to answer two related questions. First, how well do learning methods based on perturbations work in practice as alternatives to backpropagation? Second, does the proposed input-scaled node perturbation (IS-NP) method improve over existing perturbation methods in the way suggested by the theory developed in Chapter~2?
+The empirical evaluation is designed to answer two related questions. First, how well do learning methods based on perturbations work in practice as alternatives to backpropagation? Second, does the proposed input-scaled node perturbation (IS-NP) method improve over existing perturbation methods in the way suggested by the theoretical contribution developed in Chapter~\ref{ch:original_theoretical_contribution}?
 
 The first question concerns the overall practical viability of perturbation-based learning. Weight perturbation and node perturbation are attractive because they estimate useful update directions using only forward perturbations and scalar learning signals, but this comes at the cost of noisy gradient estimates. The experiments therefore assess not only whether these methods can learn simple tasks, but also how their performance changes as the learning problem becomes more difficult. In this sense, poor performance on harder tasks is still informative, because it helps identify the limits of perturbation-based learning.
 
-The second question concerns the specific contribution of this thesis. The theory chapter showed that IS-NP is matched to WP in expectation while having lower coordinate-wise estimator variance. It also motivated why IS-NP may be better scaled than vanilla NP and fan-in-scaled NP, although this latter comparison was not proven theoretically. The empirical evaluation therefore compares IS-NP against WP, vanilla NP, and fan-in-scaled NP to test whether these theoretical and intuitive advantages lead to better learning dynamics in practice.
+The second question concerns the specific contribution of this thesis. Chapter~\ref{ch:original_theoretical_contribution} showed that IS-NP is matched to WP in expectation while having lower coordinate-wise estimator variance. It also motivated why IS-NP may be better scaled than vanilla NP and fan-in-scaled NP, although this latter comparison was not proven theoretically. The empirical evaluation therefore compares IS-NP against WP, vanilla NP, and fan-in-scaled NP to test whether these theoretical and intuitive advantages lead to better learning dynamics in practice.
 
 To answer these questions, the methods are evaluated on four supervised learning problems of increasing complexity and compared against backpropagation. Backpropagation is included as the standard reference method, not because the perturbation methods are expected to outperform it, but because it shows how well the same architecture can learn when exact gradients are available. The task progression from synthetic sinus regression to California housing, MNIST, and CIFAR-10 is chosen to reveal both successful learning and failure modes. Easier tasks show whether the methods work under favourable conditions, while harder tasks make it possible to see where the methods break down and whether the differences between perturbation rules become more pronounced.
 
@@ -151,7 +151,7 @@ Taking expectation over the stochastic gradient estimator, and assuming \(\mathb
 \]
 The first term is the desired first-order decrease in loss, while the second term is the curvature cost of taking a finite step in the true gradient direction. The final term is the additional cost caused by estimator variance. This shows that gradient noise is especially harmful when it lies in high-curvature directions of the loss landscape, since its effect is weighted by \(H\) through \(\operatorname{tr}(H\Sigma)\).
 
-Estimator variance is therefore a useful diagnostic for perturbation-based learning. High variance means that individual updates may deviate substantially from the average update direction, even when the estimator is unbiased or well aligned on average. This is particularly relevant for the comparison between WP and IS-NP, since the theory in Section~2.2 predicts that IS-NP should preserve the expected WP update while reducing coordinate-wise estimator variance.
+Estimator variance is therefore a useful diagnostic for perturbation-based learning. High variance means that individual updates may deviate substantially from the average update direction, even when the estimator is unbiased or well aligned on average. This is particularly relevant for the comparison between WP and IS-NP, since Chapter~\ref{ch:original_theoretical_contribution} predicts that IS-NP should preserve the expected WP update while reducing coordinate-wise estimator variance.
 
 The empirical variance measurement uses the same frozen backpropagation checkpoints and perturbation samples as the cosine-similarity measurement. For each checkpoint, mini-batch, and perturbation method, the exact backpropagation descent direction \(u_{\mathrm{BP}}\) is computed and flattened over all weights and biases. We then draw \(K\) independent perturbation-based update estimates \(\widehat{u}^{(1)},\ldots,\widehat{u}^{(K)}\) at the same frozen parameters and on the same mini-batch. Since the perturbation estimators used here are unbiased estimators of the backpropagation update direction, subtracting \(u_{\mathrm{BP}}\) gives an empirical estimate of estimator variance rather than merely an arbitrary mean squared error to a reference vector. For \(P\) parameters, the measured variance for one method, checkpoint, and mini-batch is
 \[
@@ -428,7 +428,7 @@ BP &
 -- &
 \textbf{\(\eta=0.100\)} \\
 Sinus &
-IS-NP &
+IS NP &
 \(\{0.200, 0.225, 0.250\}\) &
 \(\{0.150, 0.175, 0.200\}\) &
 \textbf{\(\eta=0.150,\ \sigma=0.150\)} \\
@@ -454,7 +454,7 @@ BP &
 -- &
 \textbf{\(\eta=0.100\)} \\
 California housing &
-IS-NP &
+IS NP &
 \(\{0.020, 0.030, 0.040\}\) &
 \(\{0.080, 0.100, 0.120\}\) &
 \textbf{\(\eta=0.0270,\ \sigma=0.100\)} \\
@@ -480,7 +480,7 @@ BP &
 -- &
 \textbf{\(\eta=0.500\)} \\
 MNIST &
-IS-NP &
+IS NP &
 \(\{0.110, 0.120, 0.130\}\) &
 \(\{0.030, 0.0325, 0.035\}\) &
 \textbf{\(\eta=0.0510,\ \sigma=0.0325\)} \\
@@ -506,7 +506,7 @@ BP &
 -- &
 \textbf{\(\eta=0.100\)} \\
 CIFAR-10 &
-IS-NP &
+IS NP &
 \(\{0.0283, 0.0300, 0.0317\}\) &
 \(\{0.016, 0.0175, 0.01875\}\) &
 \textbf{\(\eta=0.0120,\ \sigma=0.0175\)} \\

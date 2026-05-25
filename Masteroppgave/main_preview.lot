@@ -1,0 +1,6 @@
+\babel@toc {british}{}\relax 
+\contentsline {table}{\numberline {1}{\ignorespaces Comparison of perturbation-based update rules in the literature.\relax }}{14}{table.caption.4}%
+\contentsline {table}{\numberline {2}{\ignorespaces Learning problems, preprocessing, and network architectures used in the experiments.\relax }}{28}{table.caption.5}%
+\contentsline {table}{\numberline {3}{\ignorespaces Local hyperparameter grids used during tuning. For perturbation methods, the grid is the Cartesian product of the listed learning rates and perturbation scales. The selected setting is the final configuration used for the thesis results; some learning rates are conservative scaled refinements of the displayed grid region.\relax }}{33}{table.caption.6}%
+\contentsline {table}{\numberline {4}{\ignorespaces Training and estimator-diagnostic settings for each learning problem.\relax }}{34}{table.caption.7}%
+\contentsline {table}{\numberline {5}{\ignorespaces Summary of training performance, estimator alignment, estimator variance, and convergence speed.\relax }}{41}{table.caption.13}%

@@ -1,4 +1,5 @@
 \section{Introduction}
+\label{ch:introduction}
 
 \subsection{Background and Motivation}
 
@@ -7,19 +8,19 @@
 Artificial intelligence has undergone a dramatic transformation over the past decade, emerging as one of the most powerful technological forces of our time. Recent advances in deep learning and large-scale optimization have produced systems capable of performing tasks once considered exclusive to human intelligence. Large language models can generate coherent text, write code, and assist in complex reasoning tasks. Reinforcement learning systems have achieved superhuman performance in games such as chess and Go, while breakthroughs in scientific machine learning have enabled progress on long-standing challenges such as protein structure prediction. At the same time, autonomous systems are transitioning from research prototypes to real-world deployment, with self-driving vehicles now operating in urban environments. Taken together, these developments suggest that artificial intelligence is not only progressing rapidly, but may be approaching a level of capability that raises fundamental questions about the feasibility of artificial general intelligence.
 
 \subsubsection{Open Challenges in Current AI Systems}
-Despite this rapid progress, there is increasing debate within the research community regarding whether current approaches are sufficient to achieve artificial general intelligence. Yann LeCun, often referred to as one of the “godfathers of AI”, has been particularly vocal in his criticism of current paradigms, recently co-founding a company backed by over \$1 billion to pursue fundamentally different approaches to intelligence. These developments suggest that, despite impressive empirical success, fundamental challenges may still remain. Among others, these include:
+Despite this rapid progress, there is increasing debate within the research community regarding whether current approaches are sufficient to achieve artificial general intelligence. Yann LeCun, often referred to as one of the ``godfathers of AI,'' has been particularly vocal in his criticism of current paradigms, recently co-founding a company backed by over \$1 billion to pursue fundamentally different approaches to intelligence. These developments suggest that, despite impressive empirical success, fundamental challenges may still remain. Among others, these include:
 
 \begin{itemize}
 
     \item \textbf{Energy intensity.} The 10**11 neurons and 1015
     synapses contained in the typical human brain expend approximately
-    20 W of power, whereas a digital simulation of an artificial neural network of approximately the same size consumes 7.9MW. Source: Wong, T. M. et al. 1014. Report no. RJ10502 (ALM1211-004) (IBM, 2012).
+    20~W of power, whereas a digital simulation of an artificial neural network of approximately the same size consumes 7.9MW. Source: Wong, T. M. et al. 1014. Report no. RJ10502 (ALM1211-004) (IBM, 2012).
     The power consumption of this simulation of the brain puts that of conventional digital
     systems into context. You can also include a graph that show the energy consumption per model since 1985. Exponential graph. Cant keep growing like this forever. So maybe right now, the real bottleneck to intelligence is energy. So we need more energy efficient architectures to achieve AGI.
 
 
     \item \textbf{Lack of continual learning.} 
-    Most modern AI systems lack the ability to learn continuously from experience. During training, models are optimized on a fixed dataset, after which their parameters remain largely static during deployment, preventing them from naturally adapting to new information. While updates through fine-tuning are possible, these often suffer from \emph{catastrophic forgetting}, where newly acquired knowledge interferes with previously learned information. This limitation is problematic because a generally intelligent system should be able to incorporate new information as it becomes available—for example, adapting to a specific user or immediately integrating major real-world events—without degrading prior knowledge. Current approaches such as in-context learning partially address this by conditioning on recent inputs, but this remains a temporary and indirect workaround rather than true persistent learning. As such, the lack of robust continual learning mechanisms represents a key limitation of current AI systems.
+    Most modern AI systems lack the ability to learn continuously from experience. During training, models are optimized on a fixed dataset, after which their parameters remain largely static during deployment, preventing them from naturally adapting to new information. While updates through fine-tuning are possible, these often suffer from \emph{catastrophic forgetting}, where newly acquired knowledge interferes with previously learned information. This limitation is problematic because a generally intelligent system should be able to incorporate new information as it becomes available---for example, adapting to a specific user or immediately integrating major real-world events---without degrading prior knowledge. Current approaches such as in-context learning partially address this by conditioning on recent inputs, but this remains a temporary and indirect workaround rather than true persistent learning. As such, the lack of robust continual learning mechanisms represents a key limitation of current AI systems.
     
     \item \textbf{Limited out-of-distribution generalization.} 
     Current AI systems often perform well on tasks that resemble their training data, but their performance can degrade significantly when faced with novel situations. This is because most models rely on the assumption that training and test data follow similar distributions, an assumption that rarely holds in real-world settings. As a result, models tend to exploit statistical regularities or spurious correlations present in the training data, rather than learning underlying structure that transfers to new environments. Recent work has shown that even when models appear robust on standard benchmarks, significant failure modes can emerge under distribution shifts, indicating that current evaluation methods may overestimate true generalization performance. Since general intelligence fundamentally requires the ability to apply knowledge to new and unseen situations, limited out-of-distribution generalization represents a central challenge for current AI systems.
@@ -40,7 +41,7 @@ There are broadly two perspectives on the trajectory of current AI systems. On t
 Regardless of which perspective proves correct, systems that achieve general intelligence must exhibit the capabilities outlined above, such as continual learning, strong generalization, and the ability to form abstract and grounded representations. Even if these properties ultimately emerge from scaling alone, it remains unclear whether current approaches represent the most efficient or principled way of achieving them. The natural thing to do is, therefore, to look at systems that already exhibit these capabilities.
 \subsubsection{Biological Systems as a Reference for General Intelligence}
 
-Biological systems provide a proof of existence that the capabilities outlined above can be achieved in practice. Humans and other animals exhibit continual learning, adapting to new experiences without requiring a separate training phase. They demonstrate strong generalization, applying knowledge to novel situations—for example, recognizing objects under new conditions or solving problems they have not explicitly encountered before. 
+Biological systems provide a proof of existence that the capabilities outlined above can be achieved in practice. Humans and other animals exhibit continual learning, adapting to new experiences without requiring a separate training phase. They demonstrate strong generalization, applying knowledge to novel situations---for example, recognizing objects under new conditions or solving problems they have not explicitly encountered before. 
 
 In addition, biological learning is highly sample-efficient. A child can learn the meaning of a new word, such as ``butterfly,'' from only a few exposures by leveraging contextual cues, such as where a speaker is looking or pointing, rather than requiring repeated observations across large datasets. Biological systems also form abstract representations, allowing them to recognize that an object is a chair regardless of its specific appearance, as long as it serves the function of something to sit on. 
 
@@ -54,9 +55,15 @@ An alternative approach is to focus not on replicating the full biological archi
 
 \subsubsection{Motivation for Alternative Learning Rules}
 
-Backpropagation is not biologically plausible. It relies on mechanisms such as exact gradient computation, symmetric weight transport, and the propagation of global error signals through the network—none of which are known to be implementable in biological neural systems. If architectures that more closely resemble biological systems, such as CL1, turn out to be a viable path toward more general intelligence, then backpropagation is no longer applicable as a learning mechanism. In such settings, alternative learning rules are not just interesting, but necessary.
+Backpropagation is not biologically plausible. It relies on mechanisms such as exact gradient computation, symmetric weight transport, and the propagation of global error signals through the network---none of which are known to be implementable in biological neural systems. If architectures that more closely resemble biological systems, such as CL1, turn out to be a viable path toward more general intelligence, then backpropagation is no longer applicable as a learning mechanism. In such settings, alternative learning rules are not just interesting, but necessary.
 
 At the same time, even within current machine learning systems, backpropagation is not without limitations. It is computationally and memory intensive, and its effectiveness relies on highly structured training procedures and large amounts of data. This raises the question of whether alternative learning mechanisms, potentially inspired by biological systems, can offer different trade-offs or point toward new directions for improving existing approaches.
+
+\subsubsection{Knowledge Gaps}
+
+Although perturbation-based learning methods are attractive from a biological perspective, several questions remain open. Existing work has shown that weight perturbation and node perturbation can provide useful learning signals, but the relationship between these methods is not fully understood in nonlinear multilayer networks. In particular, it is unclear whether the advantage of node perturbation comes only from perturbing a lower-dimensional space, or whether there are deeper estimator-level differences between weight-level and activity-level perturbations.
+
+There is also limited empirical evidence comparing perturbation-based learning rules across supervised tasks of increasing complexity using the same network class and evaluation procedure. As a result, it remains unclear where these methods work well, where they begin to fail, and whether theoretically motivated variants can improve their practical performance. These gaps motivate the focus of this thesis: to review the current perturbation-learning literature, develop a more direct theoretical comparison between relevant methods, and evaluate the resulting learning rules empirically.
 
 \subsection{Contribution, Research Objectives and Research Questions}
 \subsubsection{Contribution}
@@ -79,6 +86,3 @@ Assess how existing perturbation-based learning methods and the proposed method 
 \subsubsection{Research Questions}
 
 \subsection{Structure of the Thesis}
-
-
-

@@ -1,0 +1,6 @@
+\babel@toc {british}{}\relax 
+\contentsline {figure}{\numberline {1}{\ignorespaces Results for the sinus regression task.\relax }}{35}{figure.caption.8}%
+\contentsline {figure}{\numberline {2}{\ignorespaces Results for the California housing regression task.\relax }}{37}{figure.caption.9}%
+\contentsline {figure}{\numberline {3}{\ignorespaces Results for the MNIST classification task.\relax }}{38}{figure.caption.10}%
+\contentsline {figure}{\numberline {4}{\ignorespaces Results for the CIFAR-10 classification task.\relax }}{39}{figure.caption.11}%
+\contentsline {figure}{\numberline {5}{\ignorespaces Effect of scaling the sinus input range from $[-1, 1]$ to $[-5, 5]$.\relax }}{40}{figure.caption.12}%

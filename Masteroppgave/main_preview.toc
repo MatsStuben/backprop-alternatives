@@ -1,0 +1,69 @@
+\babel@toc {british}{}\relax 
+\contentsline {section}{List of Figures}{iii}{section*.2}%
+\contentsline {section}{List of Tables}{iii}{section*.3}%
+\contentsline {section}{\numberline {1}Introduction}{1}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Background and Motivation}{1}{subsection.1.1}%
+\contentsline {subsubsection}{\numberline {1.1.1}Recent Progress in Artificial Intelligence}{1}{subsubsection.1.1.1}%
+\contentsline {subsubsection}{\numberline {1.1.2}Open Challenges in Current AI Systems}{1}{subsubsection.1.1.2}%
+\contentsline {subsubsection}{\numberline {1.1.3}Two Perspectives on the Path Toward General Intelligence}{2}{subsubsection.1.1.3}%
+\contentsline {subsubsection}{\numberline {1.1.4}Biological Systems as a Reference for General Intelligence}{2}{subsubsection.1.1.4}%
+\contentsline {subsubsection}{\numberline {1.1.5}Biological Inspiration: Architecture and Learning}{3}{subsubsection.1.1.5}%
+\contentsline {subsubsection}{\numberline {1.1.6}Motivation for Alternative Learning Rules}{3}{subsubsection.1.1.6}%
+\contentsline {subsubsection}{\numberline {1.1.7}Knowledge Gaps}{3}{subsubsection.1.1.7}%
+\contentsline {subsection}{\numberline {1.2}Contribution, Research Objectives and Research Questions}{4}{subsection.1.2}%
+\contentsline {subsubsection}{\numberline {1.2.1}Contribution}{4}{subsubsection.1.2.1}%
+\contentsline {subsubsection}{\numberline {1.2.2}Objectives}{4}{subsubsection.1.2.2}%
+\contentsline {subsubsection}{\numberline {1.2.3}Research Questions}{4}{subsubsection.1.2.3}%
+\contentsline {subsection}{\numberline {1.3}Structure of the Thesis}{4}{subsection.1.3}%
+\contentsline {section}{\numberline {2}Theory}{4}{section.2}%
+\contentsline {subsection}{\numberline {2.1}How the brain learns}{4}{subsection.2.1}%
+\contentsline {paragraph}{\numberline {2.1.0.1}Hebbian learning}{5}{paragraph.2.1.0.1}%
+\contentsline {paragraph}{\numberline {2.1.0.2}Neuromodulators and three-factor learning}{5}{paragraph.2.1.0.2}%
+\contentsline {paragraph}{\numberline {2.1.0.3}Stochasticity in biological learning}{5}{paragraph.2.1.0.3}%
+\contentsline {subsection}{\numberline {2.2}Learning in artificial neural networks}{6}{subsection.2.2}%
+\contentsline {paragraph}{\numberline {2.2.0.1}Feedforward neural networks and supervised learning}{6}{paragraph.2.2.0.1}%
+\contentsline {paragraph}{\numberline {2.2.0.2}Backpropagation}{6}{paragraph.2.2.0.2}%
+\contentsline {paragraph}{\numberline {2.2.0.3}Why backpropagation is biologically implausible}{8}{paragraph.2.2.0.3}%
+\contentsline {subsection}{\numberline {2.3}Biologically plausible alternatives to backpropagation}{8}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Weight perturbation}{10}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}Node perturbation}{11}{subsection.2.5}%
+\contentsline {subsection}{\numberline {2.6}Existing comparisons of weight and node perturbation}{15}{subsection.2.6}%
+\contentsline {subsection}{\numberline {2.7}Literature gap}{16}{subsection.2.7}%
+\contentsline {section}{\numberline {3}Original Theoretical Contribution}{16}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Overview of the contribution}{16}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Pre-activation noise induced by WP}{17}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Input-scaled node perturbation}{18}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Expected equivalence between WP and IS-NP}{19}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Variance reduction theorem}{20}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Why IS-NP may improve over existing NP variants}{22}{subsection.3.6}%
+\contentsline {subsection}{\numberline {3.7}Theoretical summary and empirical hypotheses}{22}{subsection.3.7}%
+\contentsline {section}{\numberline {4}Method}{23}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Empirical evaluation strategy}{23}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Evaluation metrics}{24}{subsection.4.2}%
+\contentsline {subsubsection}{\numberline {4.2.1}Training and test performance}{24}{subsubsection.4.2.1}%
+\contentsline {subsubsection}{\numberline {4.2.2}Directional alignment}{24}{subsubsection.4.2.2}%
+\contentsline {subsubsection}{\numberline {4.2.3}Estimator variance}{25}{subsubsection.4.2.3}%
+\contentsline {subsubsection}{\numberline {4.2.4}Stability / update magnitude diagnostics}{27}{subsubsection.4.2.4}%
+\contentsline {subsection}{\numberline {4.3}Learning problems and datasets}{27}{subsection.4.3}%
+\contentsline {subsubsection}{\numberline {4.3.1}Synthetic sinus regression}{27}{subsubsection.4.3.1}%
+\contentsline {subsubsection}{\numberline {4.3.2}California housing regression}{27}{subsubsection.4.3.2}%
+\contentsline {subsubsection}{\numberline {4.3.3}MNIST classification}{27}{subsubsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {4.3.4}CIFAR-10 classification}{27}{subsubsection.4.3.4}%
+\contentsline {subsubsection}{\numberline {4.3.5}Scaled-input diagnostics}{28}{subsubsection.4.3.5}%
+\contentsline {subsection}{\numberline {4.4}Algorithms}{28}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Hyperparameter selection and experimental protocol}{31}{subsection.4.5}%
+\contentsline {section}{\numberline {5}Results}{34}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Sinus Regression}{34}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}California Housing Regression}{36}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}MNIST Classification}{38}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}CIFAR-10 Classification}{38}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Scaled Input Sensitivity}{39}{subsection.5.5}%
+\contentsline {section}{\numberline {6}Discussion}{42}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Overview of the main findings}{42}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Practical capability and limits of perturbation-based learning}{42}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Empirical support for IS-NP}{43}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Why input scaling matters}{44}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Limitations}{45}{subsection.6.5}%
+\contentsline {subsection}{\numberline {6.6}Future work}{45}{subsection.6.6}%
+\contentsline {section}{\numberline {7}Conclusion}{46}{section.7}%
+\contentsline {section}{Appendix}{47}{section*.14}%
