@@ -186,6 +186,8 @@ and
 \end{equation}
 
 Thus, unlike standard NP, the perturbation scale is not fixed across neurons. Unlike fan-in-scaled NP, it is also not determined only by the number of incoming units. Instead, IS-NP scales the perturbation by the actual norm of the incoming activation vector for each layer and input example. This does not by itself imply that IS-NP is preferable to other NP variants in practice, but it makes IS-NP directly comparable to WP because it samples the same pre-activation noise distribution induced by Gaussian weight perturbations.
+
+In terms of biological plausibility, IS-NP remains close to the three-factor learning picture. Compared to standard NP, it also uses the norm of the full incoming activation vector, \(\|\mathbf{x}^{\ell-1'}\|\), rather than only the activity of the single presynaptic neuron connected to a given synapse. This goes beyond the simplest form of Eq.~\eqref{eq:three_factor_learning}, but the added information is still based on presynaptic activity arriving at the postsynaptic neuron, together with the node perturbation and the global scalar feedback signal. IS-NP therefore remains well aligned with the general ingredients of three-factor learning, while assuming an additional neuron-level scaling term compared to standard NP.
 \subsection{Expected equivalence between WP and IS-NP}
 Recall from Section~2.4 that WP does not optimize the deterministic loss directly, but the perturbation-smoothed objective
 \begin{equation}
