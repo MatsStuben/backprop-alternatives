@@ -12,22 +12,21 @@ from learning_rules_MLP import (
     MLP,
     backprop_step,
     node_perturbation_step,
+    node_perturbation_step_fan_in_scaled,
     node_perturbation_step_fixed_sigma,
     weight_perturb_step,
 )
 
 
-METHODS = ["bp", "np", "np_fixed", "wp"]
-PERTURBATION_SIGMA = 0.1
+METHODS = ["bp", "np", "np_fan_in", "np_fixed", "wp"]
+# Edit one lr and one sigma per method here.
 METHOD_CONFIG = {
-    "bp": {"label": "Backprop", "color": "C0", "lr": 0.05, "requires_grad": True},
-    "np": {"label": "Node Perturbation", "color": "C1", "lr": 0.05, "requires_grad": False},
-    "np_fixed": {"label": "Node Perturbation Fixed Sigma", "color": "C3", "lr": 0.025, "requires_grad": False},
-    "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.025, "requires_grad": False},
+    "bp": {"label": "Backprop", "color": "C0", "lr": 0.1, "sigma": None, "requires_grad": True},
+    "np": {"label": "Node Perturbation", "color": "C1", "lr": 0.15, "sigma": 0.2, "requires_grad": False},
+    "np_fan_in": {"label": "Node Perturbation Fan-In", "color": "C4", "lr": 0.05, "sigma": 0.1, "requires_grad": False},
+    "np_fixed": {"label": "Node Perturbation Fixed Sigma", "color": "C3", "lr": 0.025, "sigma": 0.2, "requires_grad": False},
+    "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.075, "sigma": 0.2, "requires_grad": False},
 }
-AUTO_MATCH_NP_LR_TO_WP = True
-LR_CALIBRATION_BATCHES = 8
-LR_CALIBRATION_DRAWS = 16
 
 SEED = 0
 TRAIN_SAMPLES = 512
@@ -110,6 +109,20 @@ def node_perturbation_gradient_estimate(model, xb, yb, sigma):
     return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
 
 
+def node_perturbation_fan_in_gradient_estimate(model, xb, yb, sigma):
+    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb_fan_in_scaled(xb, sigma)
+    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
+
+    weight_grads = []
+    bias_grads = []
+    for x_in, noise, noise_scale in zip(activations, noises, noise_scales):
+        scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
+        weight_grads.append(torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0))
+        bias_grads.append(scaled_noise.mean(dim=0))
+
+    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
+
+
 def node_perturbation_fixed_sigma_gradient_estimate(model, xb, yb, sigma):
     activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb_fixed_sigma(xb, sigma)
     scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
@@ -149,93 +162,29 @@ def cosine_similarity_safe(a, b, eps=1e-12):
     return float(torch.dot(a, b) / (a_norm * b_norm + eps))
 
 
-def estimator_update_vector(model, method, xb, yb):
-    if method == "bp":
-        _, _, true_grad = true_gradient(model, xb, yb)
-        return -true_grad
-    if method == "np":
-        _, _, estimator_update = node_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
-        return estimator_update
-    if method == "np_fixed":
-        _, _, estimator_update = node_perturbation_fixed_sigma_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA*2)
-        return estimator_update
-    if method == "wp":
-        _, _, estimator_update = weight_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
-        return estimator_update
-    raise ValueError(f"Unknown method: {method}")
-
-
-def average_estimator_norm(model, method, x, y, batch_size, num_batches, num_draws):
-    norms = []
-    for batch_index in range(num_batches):
-        batch_start = batch_index * batch_size
-        batch_end = min(batch_start + batch_size, x.size(0))
-        xb = x[batch_start:batch_end]
-        yb = y[batch_start:batch_end]
-        draw_norms = []
-        for _ in range(num_draws):
-            estimator_update = estimator_update_vector(model, method, xb, yb)
-            draw_norms.append(float(torch.norm(estimator_update)))
-        norms.append(sum(draw_norms) / len(draw_norms))
-    return sum(norms) / len(norms)
-
-
-def maybe_calibrate_np_learning_rate(models, x_train, y_train):
-    if not AUTO_MATCH_NP_LR_TO_WP:
-        return
-
-    wp_norm = average_estimator_norm(
-        models["wp"],
-        "wp",
-        x_train,
-        y_train,
-        batch_size=BATCH_SIZE,
-        num_batches=LR_CALIBRATION_BATCHES,
-        num_draws=LR_CALIBRATION_DRAWS,
-    )
-
-    for method in ("np", "np_fixed"):
-        np_norm = average_estimator_norm(
-            models[method],
-            method,
-            x_train,
-            y_train,
-            batch_size=BATCH_SIZE,
-            num_batches=LR_CALIBRATION_BATCHES,
-            num_draws=LR_CALIBRATION_DRAWS,
-        )
-        old_np_lr = METHOD_CONFIG[method]["lr"]
-        matched_np_lr = METHOD_CONFIG["wp"]["lr"] * wp_norm / max(np_norm, 1e-12)
-        METHOD_CONFIG[method]["lr"] = matched_np_lr
-
-        print(
-            f"Calibrated {method} learning rate to match WP estimator norm: "
-            f"{method}_norm={np_norm:.4f}, wp_norm={wp_norm:.4f}, "
-            f"old_lr={old_np_lr:.4f}, new_lr={matched_np_lr:.4f}"
-        )
-
-
-def gradient_metrics(model, method, xb, yb):
-    _, _, true_grad = true_gradient(model, xb, yb)
-    true_update = -true_grad
-    if method == "bp":
-        estimator_update = true_update
-    elif method == "np":
-        _, _, estimator_update = node_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
-    elif method == "np_fixed":
-        _, _, estimator_update = node_perturbation_fixed_sigma_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA*2)
-    elif method == "wp":
-        _, _, estimator_update = weight_perturbation_gradient_estimate(model, xb, yb, PERTURBATION_SIGMA)
-    else:
-        raise ValueError(f"Unknown method: {method}")
-
-    diff = estimator_update - true_update
-    cosine = cosine_similarity_safe(estimator_update, true_update)
+def gradient_metrics(unscaled_parameter_update_vector, true_update):
+    diff = unscaled_parameter_update_vector - true_update
+    cosine = cosine_similarity_safe(unscaled_parameter_update_vector, true_update)
     variance_estimate = float(diff.pow(2).mean())
-    estimator_norm = float(torch.norm(estimator_update))
+    estimator_norm = float(torch.norm(unscaled_parameter_update_vector))
     true_update_norm = float(torch.norm(true_update))
-    projection = float(torch.dot(estimator_update, true_update) / (true_update_norm + 1e-12))
+    projection = float(torch.dot(unscaled_parameter_update_vector, true_update) / (true_update_norm + 1e-12))
     return cosine, variance_estimate, estimator_norm, true_update_norm, projection
+
+
+def hidden_activation_norms(model, x):
+    model.eval()
+    norms = []
+    with torch.no_grad():
+        h = x
+        final_layer = len(model.layers) - 1
+        for i, layer in enumerate(model.layers):
+            u = layer(h)
+            if i == final_layer:
+                break
+            h = model.activation(u)
+            norms.append(float(torch.norm(h, dim=1).mean()))
+    return norms
 
 
 def evaluate_loss(model, x, y):
@@ -266,24 +215,61 @@ def make_model_copies():
 def step_method(method, model, optimizer, xb, yb):
     config = METHOD_CONFIG[method]
     if method == "bp":
-        return backprop_step(model, xb, yb, optimizer=optimizer)
+        return backprop_step(
+            model,
+            xb,
+            yb,
+            optimizer=optimizer,
+            return_unscaled_parameter_update_vector=True,
+        )
     if method == "np":
-        return node_perturbation_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
+        return node_perturbation_step(
+            model,
+            xb,
+            yb,
+            eta=config["lr"],
+            sigma=config["sigma"],
+            return_unscaled_parameter_update_vector=True,
+        )
+    if method == "np_fan_in":
+        return node_perturbation_step_fan_in_scaled(
+            model,
+            xb,
+            yb,
+            eta=config["lr"],
+            sigma=config["sigma"],
+            return_unscaled_parameter_update_vector=True,
+        )
     if method == "np_fixed":
-        return node_perturbation_step_fixed_sigma(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
+        return node_perturbation_step_fixed_sigma(
+            model,
+            xb,
+            yb,
+            eta=config["lr"],
+            sigma=config["sigma"],
+            return_unscaled_parameter_update_vector=True,
+        )
     if method == "wp":
-        return weight_perturb_step(model, xb, yb, eta=config["lr"], sigma=PERTURBATION_SIGMA)
+        return weight_perturb_step(
+            model,
+            xb,
+            yb,
+            eta=config["lr"],
+            sigma=config["sigma"],
+            return_unscaled_parameter_update_vector=True,
+        )
     raise ValueError(f"Unknown method: {method}")
 
 
-def plot_average_gradient_metrics(cosine_history, variance_history):
-    methods_to_compare = [method for method in METHODS if method in {"np", "np_fixed", "wp"}]
+def plot_average_gradient_metrics(cosine_history, variance_history, projection_history):
+    methods_to_compare = [method for method in METHODS if method in {"np", "np_fan_in", "np_fixed", "wp"}]
     labels = [METHOD_CONFIG[method]["label"] for method in methods_to_compare]
     colors = [METHOD_CONFIG[method]["color"] for method in methods_to_compare]
     mean_cosines = [sum(cosine_history[method]) / max(len(cosine_history[method]), 1) for method in methods_to_compare]
     mean_variances = [sum(variance_history[method]) / max(len(variance_history[method]), 1) for method in methods_to_compare]
+    mean_projections = [sum(projection_history[method]) / max(len(projection_history[method]), 1) for method in methods_to_compare]
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
     axes[0].bar(labels, mean_cosines, color=colors)
     axes[0].set_title("Average Cosine Similarity")
     axes[0].set_ylabel("Cosine")
@@ -292,11 +278,15 @@ def plot_average_gradient_metrics(cosine_history, variance_history):
     axes[1].set_title("Average Gradient Variance")
     axes[1].set_ylabel("Mean squared error")
 
+    axes[2].bar(labels, mean_projections, color=colors)
+    axes[2].set_title("Average Projection onto True Update")
+    axes[2].set_ylabel("Signed projection")
+
     fig.tight_layout()
 
 
 def plot_cosine_distributions(cosine_history):
-    methods_to_compare = [method for method in METHODS if method in {"np", "np_fixed", "wp"}]
+    methods_to_compare = [method for method in METHODS if method in {"np", "np_fan_in", "np_fixed", "wp"}]
     fig, axes = plt.subplots(1, len(methods_to_compare), figsize=(10, 4), sharey=True)
 
     if len(methods_to_compare) == 1:
@@ -311,6 +301,30 @@ def plot_cosine_distributions(cosine_history):
     fig.tight_layout()
 
 
+def plot_hidden_activation_norms(iterations, hidden_activation_norm_history):
+    num_hidden_layers = len(hidden_activation_norm_history[METHODS[0]])
+    fig, axes = plt.subplots(num_hidden_layers, 1, figsize=(10, 4 * num_hidden_layers), sharex=True)
+
+    if num_hidden_layers == 1:
+        axes = [axes]
+
+    for layer_idx, axis in enumerate(axes):
+        for method in METHODS:
+            config = METHOD_CONFIG[method]
+            axis.plot(
+                iterations,
+                hidden_activation_norm_history[method][layer_idx],
+                label=config["label"],
+                color=config["color"],
+            )
+        axis.set_title(f"Hidden Layer {layer_idx + 1} Activation Norm")
+        axis.set_ylabel("L2 norm")
+        axis.legend()
+
+    axes[-1].set_xlabel("Iteration")
+    fig.tight_layout()
+
+
 def main():
     x_train, y_train, x_test, y_test = generate_sinus_data(
         n_train=TRAIN_SAMPLES,
@@ -319,7 +333,15 @@ def main():
         seed=SEED,
     )
     models, optimizers = make_model_copies()
-    maybe_calibrate_np_learning_rate(models, x_train, y_train)
+
+    print(
+        "Running sinus with configs: "
+        + " | ".join(
+            f"{method}: lr={config['lr']}"
+            + (f", sigma={config['sigma']}" if config["sigma"] is not None else "")
+            for method, config in METHOD_CONFIG.items()
+        )
+    )
 
     iterations = []
     train_loss_history = {method: [] for method in METHODS}
@@ -329,6 +351,10 @@ def main():
     estimator_norm_history = {method: [] for method in METHODS}
     true_update_norm_history = {method: [] for method in METHODS}
     projection_history = {method: [] for method in METHODS}
+    hidden_layer_count = len(models[METHODS[0]].layers) - 1
+    hidden_activation_norm_history = {
+        method: [[] for _ in range(hidden_layer_count)] for method in METHODS
+    }
 
     iteration = 0
     batches_per_epoch = (x_train.size(0) + BATCH_SIZE - 1) // BATCH_SIZE
@@ -344,8 +370,13 @@ def main():
 
             for method in METHODS:
                 model = models[method]
-                cosine, variance_estimate, estimator_norm, true_update_norm, projection = gradient_metrics(model, method, xb, yb)
-                step_method(method, model, optimizers.get(method), xb, yb)
+                _, _, true_grad = true_gradient(model, xb, yb)
+                true_update = -true_grad
+                _, unscaled_parameter_update_vector = step_method(method, model, optimizers.get(method), xb, yb)
+                cosine, variance_estimate, estimator_norm, true_update_norm, projection = gradient_metrics(
+                    unscaled_parameter_update_vector,
+                    true_update,
+                )
 
                 if iteration % METRIC_EVERY == 0:
                     train_loss_history[method].append(evaluate_loss(model, x_train, y_train))
@@ -355,6 +386,8 @@ def main():
                     estimator_norm_history[method].append(estimator_norm)
                     true_update_norm_history[method].append(true_update_norm)
                     projection_history[method].append(projection)
+                    for layer_idx, activation_norm in enumerate(hidden_activation_norms(model, x_train)):
+                        hidden_activation_norm_history[method][layer_idx].append(activation_norm)
 
             if iteration % METRIC_EVERY == 0:
                 iterations.append(iteration)
@@ -415,7 +448,8 @@ def main():
     plt.ylabel("y")
     plt.legend()
     plt.tight_layout()
-    plot_average_gradient_metrics(cosine_history, variance_history)
+    plot_hidden_activation_norms(iterations, hidden_activation_norm_history)
+    plot_average_gradient_metrics(cosine_history, variance_history, projection_history)
     plot_cosine_distributions(cosine_history)
     plt.show()
 

@@ -6,9 +6,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from sklearn.datasets import fetch_california_housing
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from torchvision.datasets import FashionMNIST
 
 from learning_rules_MLP import (
     MLP,
@@ -20,20 +18,52 @@ from learning_rules_MLP import (
 
 
 METHODS = ["bp", "np", "np_fixed", "wp"]
+
 # Edit one lr and one sigma per method here.
 METHOD_CONFIG = {
-    "bp": {"label": "Backprop", "color": "C0", "lr": 0.01, "sigma": None, "requires_grad": True},
-    "np": {"label": "Node Perturbation", "color": "C1", "lr": 0.02, "sigma": 0.1, "requires_grad": False},
-    "np_fixed": {"label": "Node Perturbation Fixed Sigma", "color": "C3", "lr": 0.0033, "sigma": 0.1, "requires_grad": False},
-    "wp": {"label": "Weight Perturbation", "color": "C2", "lr": 0.005, "sigma": 0.1, "requires_grad": False},
+    "bp": {
+        "label": "Backprop",
+        "color": "C0",
+        "lr": 0.03,
+        "sigma": None,
+        "requires_grad": True,
+    },
+    "np": {
+        "label": "Node Perturbation",
+        "color": "C1",
+        "lr": 0.02,
+        "sigma": 0.01,
+        "requires_grad": False,
+    },
+    "np_fixed": {
+        "label": "Node Perturbation Fixed Sigma",
+        "color": "C3",
+        "lr": 0.005,
+        "sigma": 0.01,
+        "requires_grad": False,
+    },
+    "wp": {
+        "label": "Weight Perturbation",
+        "color": "C2",
+        "lr": 0.005,
+        "sigma": 0.01,
+        "requires_grad": False,
+    },
 }
 
 SEED = 0
-DIMENSIONS = (8, 128, 64, 1)
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DATA_DIR = Path(__file__).resolve().parents[1] / ".data" / "fashion_mnist"
+
+NUM_CLASSES = 10
+DIMENSIONS = (28 * 28, 256, 128, NUM_CLASSES)
 BATCH_SIZE = 256
-EPOCHS = 60
+EPOCHS = 5
 METRIC_EVERY = 1
 PRINT_EVERY = 1
+PRINT_BATCH_EVERY = 1
+TRAIN_LIMIT = 20000
+TEST_LIMIT = 5000
 
 
 def flatten_model_tensors(weight_tensors, bias_tensors):
@@ -44,16 +74,50 @@ def flatten_model_tensors(weight_tensors, bias_tensors):
     return torch.cat(pieces)
 
 
-def mse_per_sample(prediction, target):
-    loss = F.mse_loss(prediction, target, reduction="none")
-    if loss.dim() > 1:
-        loss = loss.mean(dim=1)
-    return loss.view(-1)
+def cosine_similarity_safe(a, b, eps=1e-12):
+    a_norm = torch.norm(a)
+    b_norm = torch.norm(b)
+    if a_norm.item() < eps or b_norm.item() < eps:
+        return 0.0
+    return float(torch.dot(a, b) / (a_norm * b_norm + eps))
 
 
-def centered_reward_signal(loss_per_sample):
-    reward = -loss_per_sample
-    return reward - reward.mean()
+def load_fashion_mnist():
+    train_dataset = FashionMNIST(root=DATA_DIR, train=True, download=True)
+    test_dataset = FashionMNIST(root=DATA_DIR, train=False, download=True)
+
+    x_train = train_dataset.data.float() / 255.0
+    x_test = test_dataset.data.float() / 255.0
+    train_labels = train_dataset.targets.long()
+    test_labels = test_dataset.targets.long()
+
+    if TRAIN_LIMIT is not None:
+        x_train = x_train[:TRAIN_LIMIT]
+        train_labels = train_labels[:TRAIN_LIMIT]
+    if TEST_LIMIT is not None:
+        x_test = x_test[:TEST_LIMIT]
+        test_labels = test_labels[:TEST_LIMIT]
+
+    # Mean-centering keeps backprop happy while avoiding the very large
+    # input norms that make induced node perturbation excessively noisy.
+    mean = x_train.mean()
+    x_train = x_train - mean
+    x_test = x_test - mean
+
+    x_train = x_train.view(x_train.size(0), -1)
+    x_test = x_test.view(x_test.size(0), -1)
+
+    y_train = F.one_hot(train_labels, num_classes=NUM_CLASSES).float()
+    y_test = F.one_hot(test_labels, num_classes=NUM_CLASSES).float()
+
+    return (
+        x_train.to(DEVICE),
+        y_train.to(DEVICE),
+        train_labels.to(DEVICE),
+        x_test.to(DEVICE),
+        y_test.to(DEVICE),
+        test_labels.to(DEVICE),
+    )
 
 
 def true_gradient(model, xb, yb):
@@ -77,59 +141,6 @@ def true_gradient(model, xb, yb):
     return weight_grads, bias_grads, flat_grad
 
 
-def node_perturbation_gradient_estimate(model, xb, yb, sigma):
-    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb(xb, sigma)
-    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
-
-    weight_grads = []
-    bias_grads = []
-    for x_in, noise, noise_scale in zip(activations, noises, noise_scales):
-        scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
-        weight_grads.append(torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0))
-        bias_grads.append(scaled_noise.mean(dim=0))
-
-    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
-
-
-def node_perturbation_fixed_sigma_gradient_estimate(model, xb, yb, sigma):
-    activations, noises, noise_scales, prediction_noisy = model.forward_node_perturb_fixed_sigma(xb, sigma)
-    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
-
-    weight_grads = []
-    bias_grads = []
-    for x_in, noise, noise_scale in zip(activations, noises, noise_scales):
-        scaled_noise = scalar_signal.view(-1, 1) * noise / (noise_scale + 1e-12)
-        weight_grads.append(torch.bmm(scaled_noise.unsqueeze(2), x_in.unsqueeze(1)).mean(dim=0))
-        bias_grads.append(scaled_noise.mean(dim=0))
-
-    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
-
-
-def weight_perturbation_gradient_estimate(model, xb, yb, sigma):
-    layer_outputs, _, noises = model.forward_weight_perturb(xb, sigma)
-    prediction_noisy = layer_outputs[-1]
-    scalar_signal = centered_reward_signal(mse_per_sample(prediction_noisy, yb))
-    noise_scale = sigma ** 2 + 1e-12
-
-    weight_grads = []
-    bias_grads = []
-    for weight_noise, bias_noise in noises:
-        scaled_weight_noise = scalar_signal.view(-1, 1, 1) * weight_noise / noise_scale
-        scaled_bias_noise = scalar_signal.view(-1, 1) * bias_noise / noise_scale
-        weight_grads.append(scaled_weight_noise.mean(dim=0))
-        bias_grads.append(scaled_bias_noise.mean(dim=0))
-
-    return weight_grads, bias_grads, flatten_model_tensors(weight_grads, bias_grads)
-
-
-def cosine_similarity_safe(a, b, eps=1e-12):
-    a_norm = torch.norm(a)
-    b_norm = torch.norm(b)
-    if a_norm.item() < eps or b_norm.item() < eps:
-        return 0.0
-    return float(torch.dot(a, b) / (a_norm * b_norm + eps))
-
-
 def gradient_metrics(unscaled_parameter_update_vector, true_update):
     diff = unscaled_parameter_update_vector - true_update
     cosine = cosine_similarity_safe(unscaled_parameter_update_vector, true_update)
@@ -139,38 +150,25 @@ def gradient_metrics(unscaled_parameter_update_vector, true_update):
     return cosine, variance_estimate, projection
 
 
-def hidden_activation_norms(model, x):
-    model.eval()
-    norms = []
-    with torch.no_grad():
-        h = x
-        final_layer = len(model.layers) - 1
-        for i, layer in enumerate(model.layers):
-            u = layer(h)
-            if i == final_layer:
-                break
-            h = model.activation(u)
-            norms.append(float(torch.norm(h, dim=1).mean()))
-    return norms
-
-
-def evaluate_loss(model, x, y):
+def evaluate_split(model, x, y_one_hot, labels):
     model.eval()
     with torch.no_grad():
-        prediction = model(x)
-        return float(F.mse_loss(prediction, y, reduction="mean"))
+        logits = model(x)
+        loss = float(F.mse_loss(logits, y_one_hot, reduction="mean"))
+        accuracy = float((logits.argmax(dim=1) == labels).float().mean())
+    return loss, accuracy
 
 
 def make_model_copies():
     torch.manual_seed(SEED)
-    base_model = MLP(DIMENSIONS, activation=torch.sigmoid, require_grad=True)
+    base_model = MLP(DIMENSIONS, activation=F.relu, require_grad=True).to(DEVICE)
     base_state = {name: tensor.detach().clone() for name, tensor in base_model.state_dict().items()}
 
     models = {}
     optimizers = {}
     for method in METHODS:
         config = METHOD_CONFIG[method]
-        model = MLP(DIMENSIONS, activation=torch.sigmoid, require_grad=config["requires_grad"])
+        model = MLP(DIMENSIONS, activation=F.relu, require_grad=config["requires_grad"]).to(DEVICE)
         model.load_state_dict(base_state)
         models[method] = model
         if method == "bp":
@@ -259,61 +257,29 @@ def plot_cosine_distributions(cosine_history):
     fig.tight_layout()
 
 
-def plot_hidden_activation_norms(iterations, hidden_activation_norm_history):
-    num_hidden_layers = len(hidden_activation_norm_history[METHODS[0]])
-    fig, axes = plt.subplots(num_hidden_layers, 1, figsize=(10, 4 * num_hidden_layers), sharex=True)
-
-    if num_hidden_layers == 1:
-        axes = [axes]
-
-    for layer_idx, axis in enumerate(axes):
-        for method in METHODS:
-            config = METHOD_CONFIG[method]
-            axis.plot(
-                iterations,
-                hidden_activation_norm_history[method][layer_idx],
-                label=config["label"],
-                color=config["color"],
-            )
-        axis.set_title(f"Hidden Layer {layer_idx + 1} Activation Norm")
-        axis.set_ylabel("L2 norm")
-        axis.legend()
-
-    axes[-1].set_xlabel("Iteration")
-    fig.tight_layout()
-
-
-def load_california_housing():
-    dataset = fetch_california_housing()
-    x_train, x_test, y_train, y_test = train_test_split(
-        dataset.data,
-        dataset.target,
-        test_size=0.2,
-        random_state=SEED,
-    )
-
-    x_scaler = StandardScaler()
-    y_scaler = StandardScaler()
-
-    x_train = x_scaler.fit_transform(x_train)
-    x_test = x_scaler.transform(x_test)
-    y_train = y_scaler.fit_transform(y_train.reshape(-1, 1))
-    y_test = y_scaler.transform(y_test.reshape(-1, 1))
-
-    return (
-        torch.tensor(x_train, dtype=torch.float32),
-        torch.tensor(y_train, dtype=torch.float32),
-        torch.tensor(x_test, dtype=torch.float32),
-        torch.tensor(y_test, dtype=torch.float32),
-    )
-
-
 def main():
-    x_train, y_train, x_test, y_test = load_california_housing()
+    torch.manual_seed(SEED)
+    x_train, y_train, train_labels, x_test, y_test, test_labels = load_fashion_mnist()
     models, optimizers = make_model_copies()
 
+    iterations = []
+    train_loss_history = {method: [] for method in METHODS}
+    test_loss_history = {method: [] for method in METHODS}
+    train_accuracy_history = {method: [] for method in METHODS}
+    test_accuracy_history = {method: [] for method in METHODS}
+    cosine_history = {method: [] for method in METHODS}
+    variance_history = {method: [] for method in METHODS}
+    projection_history = {method: [] for method in METHODS}
+
+    iteration = 0
+    batches_per_epoch = (x_train.size(0) + BATCH_SIZE - 1) // BATCH_SIZE
+
     print(
-        "Running California Housing with configs: "
+        f"Running Fashion-MNIST with device={DEVICE}, train_limit={x_train.size(0)}, "
+        f"test_limit={x_test.size(0)}, dims={DIMENSIONS}"
+    )
+    print(
+        "Configs: "
         + " | ".join(
             f"{method}: lr={config['lr']}"
             + (f", sigma={config['sigma']}" if config["sigma"] is not None else "")
@@ -321,28 +287,15 @@ def main():
         )
     )
 
-    iterations = []
-    train_loss_history = {method: [] for method in METHODS}
-    test_loss_history = {method: [] for method in METHODS}
-    cosine_history = {method: [] for method in METHODS}
-    variance_history = {method: [] for method in METHODS}
-    projection_history = {method: [] for method in METHODS}
-    hidden_layer_count = len(models[METHODS[0]].layers) - 1
-    hidden_activation_norm_history = {
-        method: [[] for _ in range(hidden_layer_count)] for method in METHODS
-    }
-
-    iteration = 0
-    batches_per_epoch = (x_train.size(0) + BATCH_SIZE - 1) // BATCH_SIZE
-
     for epoch in range(EPOCHS):
-        permutation = torch.randperm(x_train.size(0))
+        permutation = torch.randperm(x_train.size(0), device=x_train.device)
         for batch_start in range(0, x_train.size(0), BATCH_SIZE):
             batch_end = min(batch_start + BATCH_SIZE, x_train.size(0))
             batch_indices = permutation[batch_start:batch_end]
             xb = x_train[batch_indices]
             yb = y_train[batch_indices]
             iteration += 1
+            batch_number = batch_start // BATCH_SIZE + 1
 
             for method in METHODS:
                 model = models[method]
@@ -352,16 +305,35 @@ def main():
                 cosine, variance_estimate, projection = gradient_metrics(unscaled_parameter_update_vector, true_update)
 
                 if iteration % METRIC_EVERY == 0:
-                    train_loss_history[method].append(evaluate_loss(model, x_train, y_train))
-                    test_loss_history[method].append(evaluate_loss(model, x_test, y_test))
+                    train_loss, train_accuracy = evaluate_split(model, x_train, y_train, train_labels)
+                    test_loss, test_accuracy = evaluate_split(model, x_test, y_test, test_labels)
+                    train_loss_history[method].append(train_loss)
+                    test_loss_history[method].append(test_loss)
+                    train_accuracy_history[method].append(train_accuracy)
+                    test_accuracy_history[method].append(test_accuracy)
                     cosine_history[method].append(cosine)
                     variance_history[method].append(variance_estimate)
                     projection_history[method].append(projection)
-                    for layer_idx, activation_norm in enumerate(hidden_activation_norms(model, x_train)):
-                        hidden_activation_norm_history[method][layer_idx].append(activation_norm)
 
             if iteration % METRIC_EVERY == 0:
                 iterations.append(iteration)
+
+            if batch_number % PRINT_BATCH_EVERY == 0 or batch_number == batches_per_epoch:
+                batch_status_parts = []
+                for method in METHODS:
+                    batch_status_parts.append(
+                        f"{method}: train={train_loss_history[method][-1]:.4f}, "
+                        f"test={test_loss_history[method][-1]:.4f}, "
+                        f"acc={test_accuracy_history[method][-1]:.3f}, "
+                        f"cos={cosine_history[method][-1]:.4f}, "
+                        f"var={variance_history[method][-1]:.4e}, "
+                        f"proj={projection_history[method][-1]:.4f}"
+                    )
+                print(
+                    f"  epoch {epoch + 1:3d}/{EPOCHS} | "
+                    f"batch {batch_number:3d}/{batches_per_epoch} | "
+                    + " | ".join(batch_status_parts)
+                )
 
         if (epoch + 1) % PRINT_EVERY == 0 or epoch == 0 or epoch + 1 == EPOCHS:
             status_parts = []
@@ -369,39 +341,46 @@ def main():
                 status_parts.append(
                     f"{method}: train={train_loss_history[method][-1]:.4f}, "
                     f"test={test_loss_history[method][-1]:.4f}, "
+                    f"acc={test_accuracy_history[method][-1]:.3f}, "
                     f"cos={cosine_history[method][-1]:.4f}, "
                     f"var={variance_history[method][-1]:.4e}, "
                     f"proj={projection_history[method][-1]:.4f}"
                 )
             print(
-                f"Epoch {epoch + 1:4d}/{EPOCHS} "
+                f"Epoch {epoch + 1:3d}/{EPOCHS} "
                 f"({batches_per_epoch} batches/epoch) | " + " | ".join(status_parts)
             )
 
-    fig, axes = plt.subplots(4, 1, figsize=(10, 15), sharex=True)
+    fig, axes = plt.subplots(5, 1, figsize=(11, 18), sharex=True)
     for method in METHODS:
         config = METHOD_CONFIG[method]
         axes[0].plot(iterations, train_loss_history[method], label=f"{config['label']} train", color=config["color"])
         axes[0].plot(iterations, test_loss_history[method], linestyle="--", label=f"{config['label']} test", color=config["color"])
-        axes[1].plot(iterations, cosine_history[method], label=config["label"], color=config["color"])
-        axes[2].plot(iterations, variance_history[method], label=config["label"], color=config["color"])
-        axes[3].plot(iterations, projection_history[method], label=config["label"], color=config["color"])
+        axes[1].plot(iterations, train_accuracy_history[method], label=f"{config['label']} train", color=config["color"])
+        axes[1].plot(iterations, test_accuracy_history[method], linestyle="--", label=f"{config['label']} test", color=config["color"])
+        axes[2].plot(iterations, cosine_history[method], label=config["label"], color=config["color"])
+        axes[3].plot(iterations, variance_history[method], label=config["label"], color=config["color"])
+        axes[4].plot(iterations, projection_history[method], label=config["label"], color=config["color"])
 
-    axes[0].set_title("California Housing Regression Loss")
+    axes[0].set_title("Fashion-MNIST Loss")
     axes[0].set_ylabel("MSE")
     axes[0].legend()
-    axes[1].set_title("Cosine Similarity to True Gradient")
-    axes[1].set_ylabel("Cosine")
+    axes[1].set_title("Fashion-MNIST Accuracy")
+    axes[1].set_ylabel("Accuracy")
+    axes[1].set_ylim(0.0, 1.0)
     axes[1].legend()
-    axes[2].set_title("Estimated Mean Gradient Variance")
-    axes[2].set_ylabel("Mean squared error")
+    axes[2].set_title("Cosine Similarity to True Gradient")
+    axes[2].set_ylabel("Cosine")
     axes[2].legend()
-    axes[3].set_title("Projection onto True Update")
-    axes[3].set_xlabel("Iteration")
-    axes[3].set_ylabel("Signed projection")
+    axes[3].set_title("Estimated Mean Gradient Variance")
+    axes[3].set_ylabel("Mean squared error")
     axes[3].legend()
+    axes[4].set_title("Projection onto True Update")
+    axes[4].set_xlabel("Iteration")
+    axes[4].set_ylabel("Signed projection")
+    axes[4].legend()
     fig.tight_layout()
-    plot_hidden_activation_norms(iterations, hidden_activation_norm_history)
+
     plot_average_gradient_metrics(cosine_history, variance_history, projection_history)
     plot_cosine_distributions(cosine_history)
     plt.show()
