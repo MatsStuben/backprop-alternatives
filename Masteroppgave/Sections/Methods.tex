@@ -1,279 +1,210 @@
 \section{Method}
-In theory, there is no difference between theory and practice. In practice, there is.
 \subsection{Empirical evaluation strategy}
 
-The empirical evaluation is designed to answer two related questions. First, how well do learning methods based on perturbations work in practice as alternatives to backpropagation? Second, does the proposed input-scaled node perturbation (IS-NP) method improve over existing perturbation methods in the way suggested by the theoretical contribution developed in Chapter~\ref{ch:original_theoretical_contribution}?
+The goal of this chapter is to address the third research objective of the thesis: to evaluate perturbation-based learning methods empirically. This is necessary because neural network optimization problems are generally high-dimensional and non-convex, and the behaviour of a learning rule depends on more than its expected update or estimator variance in isolation. Although the theoretical analysis in Chapter~\ref{ch:original_theoretical_contribution} gives useful predictions about the relationship between WP and IS-NP, and motivates why IS-NP may be better scaled than vanilla NP and fan-in-scaled NP, these results do not by themselves determine practical learning performance. A variance reduction result can be mathematically correct while still having limited practical effect if other factors dominate the optimization dynamics. Similarly, the argument that IS-NP is better scaled than vanilla or fan-in-scaled NP is theoretically motivated, but it is not a proof that IS-NP will train better in all tasks. To understand their practical usefulness, the methods must therefore be tested empirically. The evaluation is divided into two related parts.
 
-The first question concerns the overall practical viability of perturbation-based learning. Weight perturbation and node perturbation are attractive because they estimate useful update directions using only forward perturbations and scalar learning signals, but this comes at the cost of noisy gradient estimates. The experiments therefore assess not only whether these methods can learn simple tasks, but also how their performance changes as the learning problem becomes more difficult. In this sense, poor performance on harder tasks is still informative, because it helps identify the limits of perturbation-based learning.
+The first part asks how well perturbation-based learning methods work in practice as alternatives to backpropagation. Backpropagation is included as the standard reference method because it computes the exact gradient that the perturbation methods attempt to estimate. The goal is not to show that perturbation methods outperform backpropagation, but to understand how close they can get, how difficult a task they can solve, and where their performance begins to break down. Therefore, worse performance than backpropagation should not be interpreted as a failure of the empirical evaluation. It is an expected and informative part of the comparison, because it shows the practical cost of replacing exact gradient computation with stochastic perturbation-based estimates. This is important in relation to the motivation of Chapter~\ref{ch:introduction}: if backpropagation is difficult or impossible to use in biologically inspired architectures or other constrained settings, it is useful to know how capable perturbation-based learning methods are as substitutes.
 
-The second question concerns the specific contribution of this thesis. Chapter~\ref{ch:original_theoretical_contribution} showed that IS-NP is matched to WP in expectation while having lower coordinate-wise estimator variance. It also motivated why IS-NP may be better scaled than vanilla NP and fan-in-scaled NP, although this latter comparison was not proven theoretically. The empirical evaluation therefore compares IS-NP against WP, vanilla NP, and fan-in-scaled NP to test whether these theoretical and intuitive advantages lead to better learning dynamics in practice.
+The second part asks whether the proposed input-scaled node perturbation method improves over existing perturbation methods in the way suggested by the theoretical contribution in Chapter~\ref{ch:original_theoretical_contribution}. In particular, the experiments compare IS-NP with WP, vanilla NP, and fan-in-scaled NP. The comparison with WP tests whether the variance reduction theorem has practical consequences for learning performance and estimator quality. The comparison with the other NP variants tests whether scaling perturbations by the actual incoming activation norm improves over fixed or layer-width-based perturbation scales.
 
-To answer these questions, the methods are evaluated on four supervised learning problems of increasing complexity and compared against backpropagation. Backpropagation is included as the standard reference method, not because the perturbation methods are expected to outperform it, but because it shows how well the same architecture can learn when exact gradients are available. The task progression from synthetic sinus regression to California housing, MNIST, and CIFAR-10 is chosen to reveal both successful learning and failure modes. Easier tasks show whether the methods work under favourable conditions, while harder tasks make it possible to see where the methods break down and whether the differences between perturbation rules become more pronounced.
-
-All experiments use fully connected multilayer perceptrons to keep the comparison focused on the learning rule. For image classification tasks such as MNIST and CIFAR-10, convolutional networks would likely achieve higher absolute accuracy. However, the goal is not to maximize benchmark performance, but to compare how different learning rules behave under the same model class. Using MLPs throughout therefore makes the empirical comparison more controlled, even if it reduces absolute performance on image tasks.
-
-\subsection{Evaluation metrics}
-
-The primary measure of performance is the evolution of training and test loss. These quantities determine whether a learning rule successfully optimizes the task and whether the resulting model generalizes to unseen data. However, loss curves alone provide limited diagnostic information. If a perturbation-based method fails to learn, the loss curve shows the failure, but not whether it was caused by poor update directions, excessive estimator noise, or unstable learning dynamics.
-
-To understand the learning curves, we therefore evaluate diagnostic metrics that capture different properties of the stochastic gradient estimators. Prior work on node perturbation, particularly \textcite{hiratani2022stability}, highlights directional alignment, estimator variance, and stability as central quantities for understanding perturbation-based learning. We follow the same general perspective, but focus on empirical measurements rather than deriving full analytical expressions for each method. The following sections describe the metrics used to evaluate both final performance and estimator quality.
-
-\subsubsection{Training and test performance}
-
-Training loss measures how well the learning rule reduces the objective on the data used for optimization. Test loss measures how well the resulting model performs on held-out data that was not used during training. Together, these metrics capture the central purpose of supervised learning: fitting the structure in the training data while learning a function that generalizes to new inputs. They are therefore the most important empirical measures in this thesis. Directional alignment and estimator variance are useful because they help explain the learning curves, but training and test performance determine whether a learning rule is practically successful.
-
-In all tasks, the optimization objective is mean squared error (MSE). For the regression tasks, the training and test curves report MSE, and \(R^2\) is used as an additional score in the summary table. For MNIST and CIFAR-10, the networks are also trained with MSE, using one-hot class targets, but performance is additionally measured by classification accuracy. Accuracy is computed by taking the largest output component as the predicted class and comparing it with the true label. After each training epoch, the model is evaluated without perturbation noise on a training-evaluation set and on the test set. The reported loss is the mean MSE over the evaluated examples. The final summary table reports the lowest recorded training and test MSE, the highest recorded training and test score, and the convergence epoch. The convergence epoch is defined as the first epoch at which the test loss has achieved \(90\%\) of the total improvement from the initial test loss to the best test loss observed during the run. These quantities are computed after selecting the hyperparameters for each method through the search procedure described in Section~3.5.
-
-\subsubsection{Directional alignment}
-
-Directional alignment measures how well the gradient estimate produced by a perturbation-based learning rule points in the same direction as the true gradient of the loss. Intuitively, if the estimated update direction is well aligned with the true gradient, the learning rule is likely to reduce the loss efficiently. Conversely, if the estimated gradient frequently points in incorrect directions, learning becomes inefficient and may even increase the loss. A natural way to quantify this alignment is through the cosine similarity between the estimated gradient \(\widehat{g}\) and the true gradient \(g\):
-\[
-\cos(\widehat{g}, g)
-=
-\frac{\widehat{g}^{\top}g}{\|\widehat{g}\|\|g\|}.
-\]
-Here, \(\widehat{g}\) denotes the gradient estimator produced by the learning rule, while \(g=\nabla_\theta L(\theta)\) denotes the true gradient, computed using backpropagation in the experiments. The metric takes values in \([-1,1]\), where \(1\) indicates perfect alignment, \(0\) indicates orthogonality, and negative values indicate that the estimated update direction points against the true descent direction.
-
-The relevance of directional alignment can be seen from a first-order approximation of the loss change. Let \(L(\theta)\) be a differentiable loss function and consider an update
-\[
-\theta^+ = \theta + \Delta \theta,
-\qquad
-\Delta \theta = -\eta \widehat{g},
-\]
-where \(\eta > 0\) is the learning rate. A first-order Taylor expansion around \(\theta\) gives
-\[
-L(\theta^+) = L(\theta + \Delta \theta)
-\approx
-L(\theta) + \nabla_\theta L(\theta)^\top \Delta \theta.
-\]
-Writing \(g=\nabla_\theta L(\theta)\) and substituting \(\Delta \theta=-\eta\widehat{g}\), we obtain
-\[
-\Delta L
-=
-L(\theta^+) - L(\theta)
-\approx
--\eta g^\top \widehat{g}.
-\]
-Using
-\[
-g^\top \widehat{g}
-=
-\|g\|\|\widehat{g}\|\cos(\widehat{g},g),
-\]
-this becomes
-\[
-\Delta L
-\approx
--\eta \|g\|\|\widehat{g}\|\cos(\widehat{g},g).
-\]
-Thus, for fixed gradient norms, a higher cosine similarity gives a larger first-order decrease in the loss. Positive cosine similarity corresponds to a locally descending update, zero cosine similarity gives no first-order improvement, and negative cosine similarity corresponds to local ascent. This makes cosine similarity a useful diagnostic for the directional quality of perturbation-based gradient estimates, although the actual loss change also depends on update magnitude, estimator variance, and curvature.
-
-In practice, cosine similarity is measured on frozen backpropagation checkpoints rather than during the final training runs. For each task, a model is first trained with backpropagation and saved at three checkpoints representing early, middle, and later training; the checkpoint epochs are given in Table~\ref{tab:task_training_protocol}. At each checkpoint and for each mini-batch in the training set, the reference direction is the exact backpropagation descent direction
-\[
-u_{\mathrm{BP}}
-=
--\nabla_\theta L_{\mathcal{B}}(\theta),
-\]
-flattened over all weights and biases. For each perturbation method, the same frozen parameters and mini-batch are used to draw \(K\) independent perturbation estimates, where \(K\) is the task-specific number of perturbations in Table~\ref{tab:task_training_protocol}. Each estimate is stored as the raw parameter-update vector before multiplication by the learning rate. The \(K\) estimates are averaged,
-\[
-\bar u_m
-=
-\frac{1}{K}\sum_{k=1}^{K}\widehat{u}_{m}^{(k)},
-\]
-and the reported batch-level cosine is
-\[
-\cos(\bar u_m,u_{\mathrm{BP}})
-=
-\frac{\bar u_m^\top u_{\mathrm{BP}}}
-{\|\bar u_m\|\|u_{\mathrm{BP}}\|}.
-\]
-The final cosine value for a method is obtained by averaging this all-parameter cosine over all analysis mini-batches and over the three frozen checkpoints. This procedure ensures that WP, IS-NP, vanilla NP, and fan-in-scaled NP are compared on exactly the same weights and data batches. Backpropagation itself is assigned cosine \(1\) in the summary table, since it defines the reference direction.
-
-\subsubsection{Estimator variance}
-
-Directional alignment measures whether a gradient estimator points in a useful direction, but it does not capture how much the estimate fluctuates between perturbation samples. In perturbation-based learning, the gradient estimate is obtained from random perturbations, so two perturbation samples at the same parameter values can produce different update directions. Even if the estimator is well aligned with the true gradient on average, large fluctuations can make learning inefficient by requiring smaller learning rates or more samples. We therefore measure the variance of the gradient estimator as a diagnostic of update noise.
-
-For a vector-valued gradient estimator \(\widehat{g}\), estimator variability is naturally described by the covariance matrix
-\[
-\Sigma
-=
-\mathbb{E}\!\left[
-(\widehat{g}-\mathbb{E}[\widehat{g}])
-(\widehat{g}-\mathbb{E}[\widehat{g}])^\top
-\right].
-\]
-When the estimator is unbiased for the gradient \(g=\nabla_\theta L(\theta)\), this can be written as
-\[
-\Sigma
-=
-\mathbb{E}\!\left[
-(\widehat{g}-g)(\widehat{g}-g)^\top
-\right].
-\]
-The diagonal entries of \(\Sigma\) describe the variance of individual gradient components, while the off-diagonal entries describe correlations between fluctuations in different parameters. In practice, this covariance cannot be computed exactly and is instead estimated from multiple perturbation-based gradient estimates sampled at the same parameter values.
-
-The relevance of estimator variance can be seen from a second-order approximation of the loss change. Let \(L(\theta)\) be twice differentiable and consider the update
-\[
-\theta^+ = \theta + \Delta\theta,
-\qquad
-\Delta\theta = -\eta \widehat{g},
-\]
-where \(\eta>0\) is the learning rate. A second-order Taylor expansion around \(\theta\) gives
-\[
-L(\theta^+)
-\approx
-L(\theta)
-+
-\nabla_\theta L(\theta)^\top \Delta\theta
-+
-\frac{1}{2}\Delta\theta^\top H\Delta\theta,
-\]
-where \(H=\nabla_\theta^2 L(\theta)\) is the Hessian. Writing \(g=\nabla_\theta L(\theta)\) and substituting \(\Delta\theta=-\eta\widehat{g}\), we obtain
-\[
-\Delta L
-=
-L(\theta^+) - L(\theta)
-\approx
--\eta g^\top \widehat{g}
-+
-\frac{\eta^2}{2}\widehat{g}^\top H\widehat{g}.
-\]
-
-Taking expectation over the stochastic gradient estimator, and assuming \(\mathbb{E}[\widehat{g}]=g\), gives
-\[
-\mathbb{E}[\Delta L]
-\approx
--\eta \|g\|^2
-+
-\frac{\eta^2}{2}g^\top H g
-+
-\frac{\eta^2}{2}\operatorname{tr}(H\Sigma).
-\]
-The first term is the desired first-order decrease in loss, while the second term is the curvature cost of taking a finite step in the true gradient direction. The final term is the additional cost caused by estimator variance. This shows that gradient noise is especially harmful when it lies in high-curvature directions of the loss landscape, since its effect is weighted by \(H\) through \(\operatorname{tr}(H\Sigma)\).
-
-Estimator variance is therefore a useful diagnostic for perturbation-based learning. High variance means that individual updates may deviate substantially from the average update direction, even when the estimator is unbiased or well aligned on average. This is particularly relevant for the comparison between WP and IS-NP, since Chapter~\ref{ch:original_theoretical_contribution} predicts that IS-NP should preserve the expected WP update while reducing coordinate-wise estimator variance.
-
-The empirical variance measurement uses the same frozen backpropagation checkpoints and perturbation samples as the cosine-similarity measurement. For each checkpoint, mini-batch, and perturbation method, the exact backpropagation descent direction \(u_{\mathrm{BP}}\) is computed and flattened over all weights and biases. We then draw \(K\) independent perturbation-based update estimates \(\widehat{u}^{(1)},\ldots,\widehat{u}^{(K)}\) at the same frozen parameters and on the same mini-batch. Since the perturbation estimators used here are unbiased estimators of the backpropagation update direction, subtracting \(u_{\mathrm{BP}}\) gives an empirical estimate of estimator variance rather than merely an arbitrary mean squared error to a reference vector. For \(P\) parameters, the measured variance for one method, checkpoint, and mini-batch is
-\[
-\widehat{V}
-=
-\frac{1}{K}\sum_{k=1}^{K}
-\frac{1}{P}
-\left\|
-\widehat{u}^{(k)} - u_{\mathrm{BP}}
-\right\|_2^2.
-\]
-Equivalently, under unbiasedness this estimates the coordinate-averaged trace of the estimator covariance,
-\[
-\mathbb{E}[\widehat{V}]
-=
-\frac{1}{P}\operatorname{tr}(\Sigma).
-\]
-The reported variance for each method is obtained by averaging this quantity over all analysis mini-batches and over the three frozen checkpoints. As with cosine similarity, the final reported value uses the all-parameter vector rather than separate layerwise values. Backpropagation is assigned variance \(0\) in the summary table because it defines the deterministic reference update.
-
-\subsubsection{Stability / update magnitude diagnostics}
+To answer these questions, the methods are evaluated on four supervised learning problems of increasing complexity: synthetic sinus regression, California housing regression, MNIST classification, and CIFAR-10 classification. This progression is chosen so that the experiments can show not only whether a method works, but also how its performance changes as the learning problem becomes more difficult. Simple tasks reveal whether the methods can learn under favourable conditions, while harder tasks make the differences between learning rules more visible. The purpose of including difficult tasks is both to clearly reveal differences between methods and to identify where the perturbation methods become inefficient, unstable, or unable to match the reference performance of backpropagation. The natural next question is therefore: what does it mean for a learning method to work well?
 
 \subsection{Learning problems and datasets}
 
-The experiments use four supervised learning problems: two regression tasks and two classification tasks. All models are fully connected multilayer perceptrons (MLPs), and all methods are evaluated on the same data splits and network architecture within each task. This keeps the comparison focused on the learning rule rather than on differences in model class. For the regression tasks, performance is measured using mean squared error (MSE) and \(R^2\). For the classification tasks, the network output is a 10-dimensional vector trained against one-hot labels using MSE, while classification accuracy is computed from the largest output component.
+The empirical evaluation uses four supervised learning problems of increasing complexity. Three of these are standard datasets commonly used in machine learning experiments: California housing, MNIST, and CIFAR-10. The fourth is a synthetic sinus regression task generated specifically to provide a simple and controlled nonlinear regression problem. Together, these tasks span low-dimensional synthetic regression, real tabular regression, simple image classification, and more difficult image classification. The purpose is not to maximize benchmark performance on any one dataset, but to compare how the learning rules behave as the problem becomes more challenging.
+
+The preprocessing is kept simple and standard. The imported datasets are used in their usual form, with only the transformations needed to make them suitable for the fully connected models used in the experiments. This includes standardization for the tabular regression task and pixel scaling, mean-centering, flattening, and one-hot label encoding for the image classification tasks. The following sections describe each learning problem before summarizing the dataset properties in Table~\ref{tab:learning_problem_setup}.
+
 
 \subsubsection{Synthetic sinus regression}
 
-The sinus task is a synthetic regression problem designed to provide a controlled, low-dimensional setting where the target function is nonlinear but smooth. A latent input vector \(\mathbf{u}\in[-1,1]^8\) is sampled uniformly, and the target is
-\[
-y
-=
-\frac{
-0.6\sum_i \sin(\pi u_i)
-+0.3\sum_i u_i^2
-+0.2u_1u_2
-}{\sqrt{8}}.
-\]
-Training targets are corrupted with additive Gaussian noise with standard deviation \(0.1\), while the test targets are noiseless. In the default sinus experiment, the model input is equal to the latent vector, \(\mathbf{x}=\mathbf{u}\), so the inputs lie in \([-1,1]^8\).
+The sinus task is a synthetic regression problem designed to provide a controlled nonlinear learning problem. The input is an eight-dimensional vector, and the target is generated from a smooth nonlinear function containing sinusoidal terms, quadratic terms, and a small interaction term. This makes the task more interesting than a linear regression problem while still being simple enough that all learning methods should be expected to make progress.
+
+The dataset consists of 512 training examples and 512 test examples. The task is a scalar regression problem, so each input vector is mapped to one real-valued output. The training inputs are sampled uniformly from \([-1,1]^8\). Training targets are corrupted with additive Gaussian noise with standard deviation \(0.1\), while the test targets are generated from the noiseless target function.
+
+No external preprocessing is applied to the sinus inputs in the main experiment. The model receives the sampled input vector directly, so the input values remain in the range \([-1,1]\).
 
 \subsubsection{California housing regression}
 
-The California housing task is a real tabular regression problem. Each input contains eight housing and geographical features, and the target is the median house value. The dataset is split into training and test sets using an 80/20 split. Both input features and targets are standardized using the mean and standard deviation computed on the training split. This makes the MSE values comparable across training and test splits and prevents differences in feature scale from dominating the perturbation dynamics.
+The California housing task is a real tabular regression problem. The goal is to predict median house value from housing and geographical features describing districts in California. Compared with the sinus task, this is a less controlled problem because the data come from a real dataset rather than a generated function, but it remains low-dimensional and is therefore a useful intermediate regression task.
+
+The dataset contains 20,640 examples. It is split into 16,512 training examples and 4,128 test examples, corresponding to an 80/20 train-test split. Each input has eight features, and the output is one real-valued target, so the task is scalar regression.
+
+The input features are standardized using the mean and standard deviation computed from the training split. The target values are standardized in the same way. The test set is transformed using the training-split statistics, so no information from the test set is used during preprocessing.
 
 \subsubsection{MNIST classification}
 
-MNIST is used as a simple image classification task with ten digit classes. The \(28\times28\) grayscale images are converted to floating point values in \([0,1]\), mean-centered using the scalar mean of the training subset, and flattened into 784-dimensional input vectors. A random subset of 20,000 training images and 5,000 test images is used. Labels are represented as one-hot vectors for the MSE training objective, while accuracy is computed using the class with the largest model output.
+MNIST is a handwritten digit classification task. Each example is a grayscale image of a digit from 0 to 9, and the goal is to assign the image to the correct digit class. The task is substantially higher-dimensional than the two regression tasks, but the images are simple and centered, making MNIST a standard first benchmark for image classification methods.
+
+The full MNIST dataset contains 60,000 training images and 10,000 test images. In this thesis, a subset of 20,000 training examples and 5,000 test examples is used. Because the results were already clear when using 20,000 training examples, this subset size was kept in order to reduce computational cost. Each image has size \(28\times28\), which gives 784 input values after flattening. The output is a 10-dimensional vector corresponding to the ten digit classes, and the task is classification.
+
+Pixel values are scaled to \([0,1]\), mean-centered using the scalar mean of the training subset, and flattened into vectors. The class labels are converted to one-hot vectors for training.
 
 \subsubsection{CIFAR-10 classification}
 
-CIFAR-10 is included as a more difficult image classification task with higher-dimensional inputs and more complex visual structure. The \(32\times32\) RGB images are converted to floating point values in \([0,1]\), mean-centered using the scalar mean of the training subset, rearranged to channel-first order, and flattened into 3072-dimensional input vectors. As for MNIST, a random subset of 20,000 training images and 5,000 test images is used, with one-hot targets for MSE training and argmax accuracy for evaluation.
+CIFAR-10 is an image classification task with ten object classes. Each example is a small colour image, and the goal is to assign the image to the correct class. Compared with MNIST, CIFAR-10 is substantially more difficult because the images contain colour, background variation, and more complex visual structure. It is therefore included as the hardest task in the empirical evaluation.
+
+The full CIFAR-10 dataset contains 50,000 training images and 10,000 test images. In this thesis, a subset of 20,000 training examples and 5,000 test examples is used. As for MNIST, because the results were already clear when using 20,000 training examples, this subset size was kept in order to reduce computational cost. Each image has size \(32\times32\) with three colour channels, giving 3072 input values after flattening. The output is a 10-dimensional vector corresponding to the ten classes, and the task is classification.
+
+Pixel values are scaled to \([0,1]\), mean-centered using the scalar mean of the training subset, rearranged to channel-first format, and flattened into vectors. The class labels are converted to one-hot vectors for training.
 
 \subsubsection{Scaled-input diagnostics}
 
-In addition to the four main task settings, scaled-input diagnostics are run for sinus regression and MNIST. For sinus, the latent target remains defined on \(\mathbf{u}\in[-1,1]^8\), but the model input is scaled to \(\mathbf{x}=5\mathbf{u}\), giving inputs in \([-5,5]^8\). For MNIST, the same mean-centered inputs as in the main task are multiplied by \(5\). These diagnostics are used to test whether the perturbation estimators respond differently when the incoming activation norms are increased without otherwise changing the task structure.
+In addition to the four main learning problems, a scaled-input diagnostic experiment is performed on the sinus task. In the main sinus experiment, inputs lie in \([-1,1]^8\). In the scaled-input version, the same underlying target function is used, but the model input is multiplied by \(5\), giving inputs in \([-5,5]^8\). The target values are not changed. This isolates the effect of increasing the input norm while keeping the learning problem itself otherwise fixed.
 
-\begin{table}[!htbp]
+The purpose of this diagnostic is to test how sensitive the perturbation estimators are to changes in activation scale. Vanilla NP uses a fixed node perturbation scale, while fan-in NP scales only by layer width. Both methods therefore ignore the actual norm of the incoming activation vector. IS-NP, in contrast, scales the perturbation using the incoming activation norm, and WP naturally produces pre-activation perturbations whose scale depends on the input. The scaled sinus setting is artificial in the sense that one would normally avoid unnecessary input rescaling, but it provides a clean way to test what happens when the scale assumptions behind fixed or layer-width-based node perturbation are violated.
+
+This is especially useful because the sinus architecture uses equal hidden-layer widths, so the diagnostic is not confounded by different layer sizes. The experiment therefore focuses directly on the effect of input scale. The same kind of scale mismatch could also occur inside deeper networks if activation norms vary strongly across layers or samples, but the sinus diagnostic makes the effect visible in a simple controlled setting.
+
+\begin{sidewaystable}[!p]
 \centering
 \scriptsize
-\caption{Learning problems, preprocessing, and network architectures used in the experiments.}
+\caption{Learning problems used in the empirical evaluation.}
 \label{tab:learning_problem_setup}
-\begin{tabularx}{\textwidth}{
-    >{\raggedright\arraybackslash}p{2.1cm}
-    >{\raggedright\arraybackslash}p{2.0cm}
+\begin{tabularx}{\textheight}{
+    >{\raggedright\arraybackslash}p{2.4cm}
     >{\raggedright\arraybackslash}p{1.8cm}
-    >{\raggedright\arraybackslash}p{2.2cm}
+    >{\centering\arraybackslash}p{1.9cm}
+    >{\centering\arraybackslash}p{1.7cm}
+    >{\centering\arraybackslash}p{1.7cm}
+    >{\centering\arraybackslash}p{1.5cm}
     >{\raggedright\arraybackslash}X
-    >{\raggedright\arraybackslash}p{2.8cm}
+    >{\centering\arraybackslash}p{1.4cm}
+}
+\toprule
+\textbf{Dataset} &
+\textbf{Task type} &
+\textbf{Input \(\rightarrow\) output} &
+\textbf{Train size} &
+\textbf{Test size} &
+\textbf{Score} &
+\textbf{Source} &
+\textbf{Difficulty} \\
+\midrule
+Synthetic sinus &
+Regression &
+\(8 \rightarrow 1\) &
+512 &
+512 &
+\(R^2\) &
+Generated in the experiment &
+1 \\
+\addlinespace
+California housing &
+Regression &
+\(8 \rightarrow 1\) &
+16,512 &
+4,128 &
+\(R^2\) &
+\texttt{sklearn.datasets.fetch\_california\_housing} &
+2 \\
+\addlinespace
+MNIST &
+Classification &
+\(784 \rightarrow 10\) &
+20,000 &
+5,000 &
+Accuracy &
+\texttt{torchvision.datasets.MNIST} &
+3 \\
+\addlinespace
+CIFAR-10 &
+Classification &
+\(3072 \rightarrow 10\) &
+20,000 &
+5,000 &
+Accuracy &
+\texttt{torchvision.datasets.CIFAR10} &
+4 \\
+\bottomrule
+\end{tabularx}
+\end{sidewaystable}
+\FloatBarrier
+
+\subsection{Model architecture and initialization}
+
+All experiments use fully connected multilayer perceptrons (MLPs). This choice is made to keep the empirical evaluation aligned with the theoretical setting considered in the thesis and to isolate differences between learning rules rather than differences between architectures. For image classification tasks such as MNIST and CIFAR-10, convolutional networks would normally be a more appropriate architecture and would likely give better absolute performance. However, the goal here is not to maximize benchmark accuracy, but to compare perturbation-based learning rules under a common model class. This is also consistent with much of the perturbation-learning literature, where fully connected networks are commonly used to study the behaviour of the learning rule itself. The hidden-layer activation function is sigmoid for the two regression tasks and ReLU for the two classification tasks, while all output layers are linear. The specific layer sizes used for each task are shown in Table~\ref{tab:model_architectures}. All layers are implemented as PyTorch \texttt{nn.Linear} layers with bias terms. Since no custom initialization is applied, the weights and biases use the default PyTorch initialization for linear layers, which is Kaiming-uniform-style for the weights with fan-in-dependent uniform initialization for the biases.
+
+\begin{sidewaystable}[!p]
+\centering
+\scriptsize
+\caption{Model architectures used in the empirical evaluation.}
+\label{tab:model_architectures}
+\begin{tabularx}{\textheight}{
+    >{\raggedright\arraybackslash}p{2.6cm}
+    >{\centering\arraybackslash}p{3.1cm}
+    >{\centering\arraybackslash}p{2.5cm}
+    >{\centering\arraybackslash}p{2.3cm}
+    >{\centering\arraybackslash}p{1.6cm}
+    >{\raggedright\arraybackslash}X
 }
 \toprule
 \textbf{Task} &
-\textbf{Objective / score} &
-\textbf{Input / output} &
-\textbf{Samples used} &
-\textbf{Input preprocessing} &
-\textbf{Architecture} \\
+\textbf{Layer sizes} &
+\textbf{Hidden activation} &
+\textbf{Output activation} &
+\textbf{Biases} &
+\textbf{Initialization} \\
 \midrule
 Sinus regression &
-MSE / \(R^2\) &
-\(8 \rightarrow 1\) &
-512 train, 512 test &
-Uniform inputs in \([-1,1]^8\). Training labels include Gaussian noise with standard deviation \(0.1\); test labels are noiseless. &
-\(8\)-\(8\)-\(8\)-\(1\), sigmoid hidden activations, linear output. \\
+\(8\)-\(8\)-\(8\)-\(1\) &
+Sigmoid &
+Linear &
+Yes &
+Kaiming-uniform-style weights; fan-in-dependent uniform biases \\
 \addlinespace
 California housing &
-MSE / \(R^2\) &
-\(8 \rightarrow 1\) &
-16,512 train, 4,128 test &
-80/20 split. Inputs and targets standardized using training-split statistics. &
-\(8\)-\(128\)-\(64\)-\(1\), sigmoid hidden activations, linear output. \\
+\(8\)-\(128\)-\(64\)-\(1\) &
+Sigmoid &
+Linear &
+Yes &
+Kaiming-uniform-style weights; fan-in-dependent uniform biases \\
 \addlinespace
 MNIST &
-MSE / accuracy &
-\(784 \rightarrow 10\) &
-20,000 train, 5,000 test; 4,000 for train evaluation &
-Pixels divided by 255, scalar training mean subtracted, images flattened, labels one-hot encoded. &
-\(784\)-\(256\)-\(128\)-\(10\), ReLU hidden activations, linear output. \\
+\(784\)-\(256\)-\(128\)-\(10\) &
+ReLU &
+Linear &
+Yes &
+Kaiming-uniform-style weights; fan-in-dependent uniform biases \\
 \addlinespace
 CIFAR-10 &
-MSE / accuracy &
-\(3072 \rightarrow 10\) &
-20,000 train, 5,000 test; 4,000 for train evaluation &
-Pixels divided by 255, scalar training mean subtracted, images flattened, labels one-hot encoded. &
-\(3072\)-\(512\)-\(256\)-\(10\), ReLU hidden activations, linear output. \\
+\(3072\)-\(512\)-\(256\)-\(10\) &
+ReLU &
+Linear &
+Yes &
+Kaiming-uniform-style weights; fan-in-dependent uniform biases \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{sidewaystable}
 \FloatBarrier
 
 \subsection{Algorithms}
-All perturbation-based methods were trained using mini-batches. For a mini-batch
-\(\mathcal{B}\) of size \(m\), the implementation first performs one noisy forward pass and computes a per-sample loss \(\ell_i\). The scalar learning signal is the centred reward
-\begin{equation}
-\begin{aligned}
-    r_i
-    &= -\ell_i - \frac{1}{m}\sum_{j=1}^{m}(-\ell_j) \\
-    &= \frac{1}{m}\sum_{j=1}^{m}\ell_j - \ell_i,
-\end{aligned}
-    \label{eq:centered_batch_reward}
-\end{equation}
-so the baseline is the mean reward of the same noisy mini-batch. No additional noiseless baseline forward pass is used. The updates below match the implementation in \texttt{learning\_rules\_MLP.py}; \(\epsilon_{\mathrm{num}}\) denotes a small numerical stabilizer.
 
-This batch-mean baseline is a practical implementation choice. In the literature considered here, baseline subtraction is typically implemented using an additional forward pass. Standard WP/NP methods often subtract the loss from a noiseless forward pass~\parencite{werfel2005learning,hiratani2022stability,dalm2024effective,zuge2023weight}, while noisy-baseline variants subtract the loss from a second independently perturbed forward pass~\parencite{cho2011node,hara2017statistical}. Both approaches require evaluating an additional baseline trajectory. In the implementation used here, the baseline is instead computed from the same noisy mini-batch. Since each individual update uses the batch mean as its centering term, perturbations with lower-than-average loss are reinforced, while perturbations with higher-than-average loss are reversed. This avoids an additional baseline forward pass and keeps all methods in the same score-function-style family of perturbation estimators.
+The perturbation estimators used in the experiments are the same score-function-style estimators derived in Chapters~\ref{ch:theory} and~\ref{ch:original_theoretical_contribution}. This section therefore does not rederive the learning rules, but specifies the implementation choices used in the empirical evaluation. These choices are important because they determine how the theoretical estimators are turned into practical mini-batch training algorithms.
+
+All learning methods are trained using mini-batches. For backpropagation, this is the standard mini-batch SGD update: the MSE loss is averaged over the mini-batch, the gradient is computed by backpropagation, and the parameters are updated with SGD. No momentum, Adam, weight decay, or learning-rate schedule is used. Backpropagation is therefore not listed as a separate algorithm below, since it is the standard SGD implementation of the gradient computation described in Chapter~\ref{ch:theory}. It is included only as the reference method against which the perturbation methods are compared.
+
+For the perturbation methods, independent perturbations are sampled for each example in the mini-batch. Thus, each example produces its own noisy forward pass and its own scalar loss. The parameter update is then obtained by averaging the resulting per-example update estimates across the mini-batch. Sampling independent perturbations per example is important because the batch-mean baseline relies on variation between perturbations inside the same mini-batch. If the same perturbation were shared by the whole batch, subtracting the batch mean would remove the useful scalar learning signal.
+
+Let \(\mathcal{B}=\{(x_i,y_i)\}_{i=1}^m\) denote a mini-batch of size \(m\), and let \(\ell_i\) be the noisy loss obtained for example \(i\). The scalar learning signal used for each example is
+\[
+    r_i
+    =
+    \bar{\ell}_{\mathcal{B}}-\ell_i,
+    \qquad
+    \bar{\ell}_{\mathcal{B}}
+    =
+    \frac{1}{m}\sum_{j=1}^m \ell_j .
+\]
+Thus, perturbations that lead to lower-than-average loss receive a positive learning signal, while perturbations that lead to higher-than-average loss are reversed.
+
+In the theoretical derivation, an independent baseline is required for the usual unbiasedness argument. A leave-one-out mini-batch baseline,
+\[
+    \bar{\ell}_{-i}
+    =
+    \frac{1}{m-1}\sum_{j\neq i}\ell_j,
+\]
+would satisfy this condition because the baseline for example \(i\) would not include the noisy loss generated by the perturbation of that same example. In the implementation, however, the full mini-batch mean \(\bar{\ell}_{\mathcal{B}}\) is used instead. This means that the baseline is not strictly independent of the perturbation for example \(i\), so the estimator is not exactly the same unbiased estimator as the leave-one-out version. This choice is made for computational reasons: the full batch mean is obtained directly from the losses already computed in the noisy forward pass, while a leave-one-out baseline would require a separate baseline value for every example in the mini-batch. Since the self-inclusion effect is of order \(1/m\), it is expected to be small for the batch sizes used in the experiments, and the practical benefit of avoiding the additional computation is considered to outweigh this small approximation.
 
 \begin{algorithm}[htbp]
 \caption{Weight perturbation (WP)}
@@ -286,16 +217,16 @@ This batch-mean baseline is a practical implementation choice. In the literature
         \For{sample \(i=1,\ldots,m\)}
             \State \(a_{0,i}\gets x_i\)
             \For{layer \(k=1,\ldots,L\)}
-                \State Draw \(E^W_{k,i}\sim\mathcal{N}(0,\sigma^2 I)\), \(E^b_{k,i}\sim\mathcal{N}(0,\sigma^2 I)\)
-                \State \(z_{k,i}\gets (W_k+E^W_{k,i})a_{k-1,i}+b_k+E^b_{k,i}\)
+                \State Draw \(\xi^W_{k,i}\sim\mathcal{N}(0,I)\), \(\xi^b_{k,i}\sim\mathcal{N}(0,I)\)
+                \State \(z_{k,i}\gets (W_k+\sigma\xi^W_{k,i})a_{k-1,i}+b_k+\sigma\xi^b_{k,i}\)
                 \State \(a_{k,i}\gets \phi_k(z_{k,i})\)
             \EndFor
             \State \(\ell_i\gets \mathcal{L}(a_{L,i},y_i)\)
         \EndFor
         \State \(r_i\gets \frac{1}{m}\sum_{j=1}^{m}\ell_j-\ell_i\) for all \(i\)
         \For{layer \(k=1,\ldots,L\)}
-            \State \(\Delta W_k\gets \frac{1}{m}\sum_{i=1}^{m} r_i E^W_{k,i}/(\sigma^2+\epsilon_{\mathrm{num}})\)
-            \State \(\Delta b_k\gets \frac{1}{m}\sum_{i=1}^{m} r_i E^b_{k,i}/(\sigma^2+\epsilon_{\mathrm{num}})\)
+            \State \(\Delta W_k\gets \frac{1}{m}\sum_{i=1}^{m} r_i \xi^W_{k,i}/(\sigma+\epsilon_{\mathrm{num}})\)
+            \State \(\Delta b_k\gets \frac{1}{m}\sum_{i=1}^{m} r_i \xi^b_{k,i}/(\sigma+\epsilon_{\mathrm{num}})\)
             \State \(W_k\gets W_k+\eta\Delta W_k,\quad b_k\gets b_k+\eta\Delta b_k\)
         \EndFor
     \EndFor
@@ -392,6 +323,181 @@ This batch-mean baseline is a practical implementation choice. In the literature
 \end{algorithmic}
 \end{algorithm}
 \FloatBarrier
+
+\subsection{Evaluation metrics}
+
+In supervised machine learning, the central question is how well a trained model performs on unseen data. The most important empirical quantity is therefore the test loss, since this measures whether the learned function generalizes beyond the examples used for optimization. Training loss is also important, because it shows whether the learning rule is able to reduce the objective on the data it is trained on. These two quantities therefore form the main performance measures in the empirical evaluation.
+
+However, training and test loss provide limited diagnostic information. They show how well a method works, but not why it works or fails. A perturbation-based method may perform poorly because its estimated updates are poorly aligned with the true descent direction, or because the estimates fluctuate strongly between perturbation samples. To better understand the learning curves, we therefore also measure directional alignment and estimator variance. These are natural diagnostics for perturbation-based learning, and they are especially relevant in this thesis because they connect directly to the theoretical results in Chapter~\ref{ch:original_theoretical_contribution}: the expectation-matching result concerns the average update direction, while the variance theorem predicts a difference in estimator variability. The following sections describe the three metric groups used in the experiments, why they matter, and how they are measured in this thesis.
+\subsubsection{Training and test performance}
+
+Training and test performance measure how well the learning rule solves the supervised learning problem. Training loss shows whether the method can reduce the objective on the data used for optimization, while test loss measures whether the learned model generalizes to unseen data. These are the most important metrics in the empirical evaluation, since minimizing the loss and obtaining good test performance is the central goal of training the network.
+
+In all experiments, the loss is the mean squared error (MSE) between the network prediction and the target. For the regression tasks, this is simply the squared difference between the predicted scalar output and the scalar target, averaged over examples. For the classification tasks, the class labels are represented as one-hot vectors, and the MSE is computed between the 10-dimensional network output and the one-hot target vector. Classification performance is also evaluated using accuracy, where the predicted class is taken to be the output component with the largest value. Each experiment is repeated across multiple random seeds: 10 seeds for the sinus task and 5 seeds for the other tasks, where computational cost is higher. The loss and accuracy curves are plotted as averages across seeds as functions of training epoch. In addition, the summary tables report the mean \(\pm\) standard deviation across seeds, where each entry is first computed separately for each seed; for example, the reported best test loss is the average of the best test loss reached in each individual seed. The convergence epoch is defined as the first epoch at which the test loss has achieved \(90\%\) of the total improvement from the initial test loss to the best test loss observed during training.
+
+These metrics are interpreted in three main ways. First, the best training and test values show the final performance reached by each method. Second, the convergence epoch indicates how quickly the method approaches its best observed performance. Third, the shape of the learning curves gives information about stability: smooth curves indicate stable learning dynamics, while large fluctuations or spikes suggest that the updates are noisy or unstable. Together, these quantities show not only how well each method performs, but also how efficiently and reliably it learns.
+
+\subsubsection{Directional alignment}
+
+All perturbation-based update rules considered in this thesis are intended to estimate a useful gradient direction from stochastic perturbations and a scalar learning signal. In expectation, these estimators point in the same direction as the gradient of the objective they estimate. This makes it natural to ask how well a finite-sample perturbation estimate aligns with the true gradient in practice. Intuitively, if the estimated update direction is well aligned with the true gradient, the learning rule is likely to reduce the loss efficiently. Conversely, if the estimated gradient frequently points in incorrect directions, learning becomes inefficient and may even increase the loss. A natural way to quantify this alignment is through the cosine similarity between the estimated gradient \(\widehat{g}\) and the true gradient \(g\):
+\[
+\cos(\widehat{g}, g)
+=
+\frac{\widehat{g}^{\top}g}{\|\widehat{g}\|\|g\|}.
+\]
+Here, \(\widehat{g}\) denotes the gradient estimator produced by the learning rule, while \(g=\nabla_\theta L(\theta)\) denotes the true gradient, computed using backpropagation in the experiments. The metric takes values in \([-1,1]\), where \(1\) indicates perfect alignment, \(0\) indicates orthogonality, and negative values indicate that the estimated update direction points against the true descent direction.
+
+The relevance of directional alignment can be seen from a first-order approximation of the loss change. Let \(L(\theta)\) be a differentiable loss function and consider an update
+\[
+\theta^+ = \theta + \Delta \theta,
+\qquad
+\Delta \theta = -\eta \widehat{g},
+\]
+where \(\eta > 0\) is the learning rate. A first-order Taylor expansion around \(\theta\) gives
+\[
+L(\theta^+) = L(\theta + \Delta \theta)
+\approx
+L(\theta) + \nabla_\theta L(\theta)^\top \Delta \theta.
+\]
+Writing \(g=\nabla_\theta L(\theta)\) and substituting \(\Delta \theta=-\eta\widehat{g}\), we obtain
+\[
+\Delta L
+=
+L(\theta^+) - L(\theta)
+\approx
+-\eta g^\top \widehat{g}.
+\]
+Using
+\[
+g^\top \widehat{g}
+=
+\|g\|\|\widehat{g}\|\cos(\widehat{g},g),
+\]
+this becomes
+\[
+\Delta L
+\approx
+-\eta \|g\|\|\widehat{g}\|\cos(\widehat{g},g).
+\]
+Thus, for fixed gradient norms, a higher cosine similarity gives a larger first-order decrease in the loss. Positive cosine similarity corresponds to a locally descending update, zero cosine similarity gives no first-order improvement, and negative cosine similarity corresponds to local ascent. This makes cosine similarity a useful diagnostic for the directional quality of perturbation-based gradient estimates, although the actual loss change also depends on update magnitude, estimator variance, and curvature.
+
+Concretely, for each task, a model is first trained with backpropagation and saved at three checkpoints representing early, middle, and later training; the checkpoint epochs are given in Table~\ref{tab:task_training_protocol}. Backpropagation is used for this diagnostic so that all perturbation rules are compared at the same parameter values. This makes the comparison between estimators fair: differences in cosine similarity then reflect differences in the update estimates themselves, rather than differences in where each method happens to be during training. Using three checkpoints also tests whether estimator quality changes between the beginning, middle, and later stages of training. At each checkpoint and for each mini-batch in the training set, the reference direction is the exact backpropagation descent direction
+\[
+    u_{\mathrm{BP}}
+    =
+    -\nabla_\theta L_{\mathcal{B}}(\theta),
+\]
+flattened over all weights and biases. For each perturbation method, the same frozen parameters and the same mini-batch are used to compute \(K\) independent gradient estimates. Each estimate is obtained by drawing new random perturbations and applying the corresponding perturbation update rule to the mini-batch, without changing the model parameters. Thus, for method \(m\), this gives \(K\) raw update directions
+\[
+    \widehat{u}^{(1)}_m,\ldots,\widehat{u}^{(K)}_m .
+\]
+These are then averaged before computing cosine similarity:
+\[
+    \bar{u}_m
+    =
+    \frac{1}{K}
+    \sum_{k=1}^{K}
+    \widehat{u}^{(k)}_m,
+\]
+Averaging over \(K\) perturbation samples makes the estimate less dependent on a single lucky or unlucky perturbation draw, and therefore gives a more reliable estimate of the expected update direction. However, increasing \(K\) also increases memory use and computation time. The value of \(K\) is therefore task-specific, with fewer perturbation samples used for the larger image models, as shown in Table~\ref{tab:task_training_protocol}. The update directions are stored before multiplication by the learning rate, so the cosine comparison measures directional quality independently of the learning-rate choice. The batch-level cosine similarity is then computed as
+\[
+    \cos(\bar{u}_m,u_{\mathrm{BP}})
+    =
+    \frac{\bar{u}_m^\top u_{\mathrm{BP}}}
+    {\|\bar{u}_m\|\|u_{\mathrm{BP}}\|}.
+\]
+This value is averaged over all mini-batches in one full pass through the training set and over all random seeds, using 10 seeds for the sinus task and 5 seeds for the other tasks because of their higher computational cost. In the main results, the three checkpoint values are also averaged to give one final cosine value per method and dataset. The summary tables report the mean \(\pm\) standard deviation of this aggregate cosine across seeds. The checkpoint-specific cosine values are also saved and plotted separately, but they are moved to the appendix because they do not change the main interpretation and would otherwise add many extra plots to the results chapter.
+\subsubsection{Estimator variance}
+
+Directional alignment measures whether a gradient estimator points in a useful direction, but it does not capture how much the estimate fluctuates between perturbation samples. In perturbation-based learning, the gradient estimate is obtained from random perturbations, so two perturbation samples at the same parameter values can produce different update directions. Even if the estimator is well aligned with the true gradient on average, large fluctuations can make learning inefficient. Variance is also central to the theoretical contribution of the thesis, where IS-NP was shown to have lower or equal coordinate-wise variance than WP under the matched perturbation construction. Estimator variance is therefore a natural diagnostic to measure empirically. Before describing how it is measured, we first show how variance affects the expected change in loss.
+
+The relevance of estimator variance can be seen from a second-order approximation of the loss change. Let \(L(\theta)\) be twice differentiable and consider the update
+\[
+\theta^+ = \theta + \Delta\theta,
+\qquad
+\Delta\theta = -\eta \widehat{g},
+\]
+where \(\eta>0\) is the learning rate. A second-order Taylor expansion around \(\theta\) gives
+\[
+L(\theta^+)
+\approx
+L(\theta)
++
+\nabla_\theta L(\theta)^\top \Delta\theta
++
+\frac{1}{2}\Delta\theta^\top H\Delta\theta,
+\]
+where \(H=\nabla_\theta^2 L(\theta)\) is the Hessian. Writing \(g=\nabla_\theta L(\theta)\) and substituting \(\Delta\theta=-\eta\widehat{g}\), we obtain
+\[
+\Delta L
+=
+L(\theta^+) - L(\theta)
+\approx
+-\eta g^\top \widehat{g}
++
+\frac{\eta^2}{2}\widehat{g}^\top H\widehat{g}.
+\]
+
+Taking expectation over the stochastic gradient estimator, and assuming \(\mathbb{E}[\widehat{g}]=g\), gives
+\[
+\mathbb{E}[\Delta L]
+\approx
+-\eta \|g\|^2
++
+\frac{\eta^2}{2}g^\top H g
++
+\frac{\eta^2}{2}\operatorname{tr}(H\Sigma).
+\]
+The important point is that estimator variance appears directly in the expected loss change through the term \(\operatorname{tr}(H\Sigma)\), where \(H\) is the Hessian of the loss with respect to the parameters and \(\Sigma\) is the covariance of the gradient estimator. This means that update noise is not merely random fluctuation around an otherwise good direction; it can directly reduce the expected progress made by an update. In particular, variance is most harmful when it lies in directions where the loss has high curvature, because those directions are weighted more strongly by \(H\). Ideally, we would measure the full curvature-weighted quantity \(\operatorname{tr}(H\Sigma)\), but estimating the Hessian and the full covariance matrix is not practical for the repeated perturbation experiments used here. We therefore measure estimator variance itself as a tractable and directly relevant diagnostic of update noise.
+
+
+Estimator variance is naturally defined through the covariance matrix of the vector-valued gradient estimator. For a gradient estimator \(\widehat{g}\), this covariance matrix is
+\[
+    \Sigma
+    =
+    \mathbb{E}\!\left[
+    (\widehat{g}-\mathbb{E}[\widehat{g}])
+    (\widehat{g}-\mathbb{E}[\widehat{g}])^\top
+    \right].
+\]
+When the estimator is unbiased for the gradient \(g=\nabla_\theta L(\theta)\), this can be written as
+\[
+    \Sigma
+    =
+    \mathbb{E}\!\left[
+    (\widehat{g}-g)
+    (\widehat{g}-g)^\top
+    \right].
+\]
+This is useful here because the exact gradient can be computed using backpropagation. Instead of estimating variance by subtracting the empirical mean of the perturbation samples, we subtract the exact backpropagation direction. However, \(\Sigma\) is a full covariance matrix over all parameters, which is too large to report directly. We therefore reduce it to a scalar by averaging the diagonal entries of \(\Sigma\). For \(P\) trainable parameters, this gives
+\[
+    \frac{1}{P}
+    \sum_{p=1}^{P}
+    \Sigma_{pp}
+    =
+    \frac{1}{P}
+    \operatorname{tr}(\Sigma).
+\]
+This is the average variance per parameter.
+
+The measurement procedure follows the same frozen-checkpoint structure as the cosine-similarity calculation. For each checkpoint, mini-batch, and perturbation method, the exact backpropagation descent direction \(u_{\mathrm{BP}}\) is computed and flattened over all weights and biases. We then draw \(K\) independent perturbation-based update estimates,
+\[
+    \widehat{u}^{(1)}_m,\ldots,\widehat{u}^{(K)}_m,
+\]
+using the same frozen parameters and the same mini-batch. The empirical estimate for one method, checkpoint, and mini-batch is then
+\[
+    \widehat{V}_m
+    =
+    \frac{1}{K}
+    \sum_{k=1}^{K}
+    \frac{1}{P}
+    \left\|
+    \widehat{u}^{(k)}_m - u_{\mathrm{BP}}
+    \right\|_2^2 .
+\]
+Here, the factor \(1/P\) averages over parameters, while the factor \(1/K\) averages over perturbation samples.
+
+As for cosine similarity, this variance estimate is averaged over all mini-batches in one full pass through the training set and over random seeds, using 10 seeds for the sinus task and 5 seeds for the other tasks. In the main results, the three checkpoint values are also averaged to give one final variance value per method and dataset. The summary tables report the mean \(\pm\) standard deviation of this aggregate variance across seeds. Checkpoint-specific variance plots are also generated and included in the appendix, while the main results focus on the aggregate variance plots.
 
 \subsection{Hyperparameter selection and experimental protocol}
 
