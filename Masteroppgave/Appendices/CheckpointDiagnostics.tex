@@ -1,0 +1,200 @@
+\subsection{Checkpoint-Specific Estimator Diagnostics}
+\label{app:checkpoint_diagnostics}
+
+This appendix shows the checkpoint-specific cosine similarity and estimator variance plots used to support the aggregate diagnostics in Chapter~\ref{ch:method} and Chapter~\ref{ch:results}. For each learning problem, the diagnostics are shown separately at the three frozen backpropagation checkpoints used in the empirical evaluation.
+
+\subsubsection{Sinus Regression}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus/cosine_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus/cosine_checkpoint_120.pdf}
+        \caption{Epoch 120.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus/cosine_checkpoint_240.pdf}
+        \caption{Epoch 240.}
+    \end{subfigure}
+    \caption{Checkpoint-specific cosine similarity for the sinus regression task.}
+    \label{fig:app_sinus_cosine_checkpoints}
+\end{figure}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus/variance_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus/variance_checkpoint_120.pdf}
+        \caption{Epoch 120.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus/variance_checkpoint_240.pdf}
+        \caption{Epoch 240.}
+    \end{subfigure}
+    \caption{Checkpoint-specific estimator variance for the sinus regression task.}
+    \label{fig:app_sinus_variance_checkpoints}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{California Housing Regression}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing/cosine_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing/cosine_checkpoint_025.pdf}
+        \caption{Epoch 25.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing/cosine_checkpoint_050.pdf}
+        \caption{Epoch 50.}
+    \end{subfigure}
+    \caption{Checkpoint-specific cosine similarity for the California housing regression task.}
+    \label{fig:app_california_housing_cosine_checkpoints}
+\end{figure}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing/variance_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing/variance_checkpoint_025.pdf}
+        \caption{Epoch 25.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing/variance_checkpoint_050.pdf}
+        \caption{Epoch 50.}
+    \end{subfigure}
+    \caption{Checkpoint-specific estimator variance for the California housing regression task.}
+    \label{fig:app_california_housing_variance_checkpoints}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{MNIST Classification}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/cosine_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/cosine_checkpoint_010.pdf}
+        \caption{Epoch 10.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/cosine_checkpoint_020.pdf}
+        \caption{Epoch 20.}
+    \end{subfigure}
+    \caption{Checkpoint-specific cosine similarity for the MNIST classification task.}
+    \label{fig:app_mnist_cosine_checkpoints}
+\end{figure}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/variance_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/variance_checkpoint_010.pdf}
+        \caption{Epoch 10.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/variance_checkpoint_020.pdf}
+        \caption{Epoch 20.}
+    \end{subfigure}
+    \caption{Checkpoint-specific estimator variance for the MNIST classification task.}
+    \label{fig:app_mnist_variance_checkpoints}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{CIFAR-10 Classification}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/cosine_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/cosine_checkpoint_025.pdf}
+        \caption{Epoch 25.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/cosine_checkpoint_050.pdf}
+        \caption{Epoch 50.}
+    \end{subfigure}
+    \caption{Checkpoint-specific cosine similarity for the CIFAR-10 classification task.}
+    \label{fig:app_cifar10_cosine_checkpoints}
+\end{figure}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/variance_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/variance_checkpoint_025.pdf}
+        \caption{Epoch 25.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/variance_checkpoint_050.pdf}
+        \caption{Epoch 50.}
+    \end{subfigure}
+    \caption{Checkpoint-specific estimator variance for the CIFAR-10 classification task.}
+    \label{fig:app_cifar10_variance_checkpoints}
+\end{figure}
+\FloatBarrier

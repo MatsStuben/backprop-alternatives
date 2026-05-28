@@ -1,18 +1,21 @@
 \section{Results}
+\label{ch:results}
+
+For each learning problem, the main summary table reports the numerical performance and diagnostic metrics. In addition, a ranking table is included for the perturbation methods only. Each perturbation method is assigned a rank from 1 to 4 for each metric, where 1 is best. Lower values are better for loss, convergence epoch, and estimator variance, while higher values are better for score and cosine similarity. The overall rank is the average across the metric-specific ranks, so lower overall scores indicate better performance. After the four task-specific rankings, an aggregate ranking is also reported by averaging the same metric-specific ranks across all four tasks.
 
 \subsection{Sinus Regression}
 
-All methods reduce the training and test loss on the sinus regression task. The final losses are very similar across methods, with best test losses between \(0.0716\) and \(0.0727\). Backpropagation reaches a best test loss of \(0.0717\), while IS-NP, vanilla NP, fan-in NP, and WP reach \(0.0727\), \(0.0717\), \(0.0716\), and \(0.0725\), respectively. The corresponding test \(R^2\) values are also close, ranging from \(0.553\) to \(0.559\). In terms of convergence speed, IS-NP reaches its convergence criterion earliest among the perturbation methods, at epoch \(73\), while WP is slowest, converging at epoch \(200\).
+Figure~\ref{fig:sinus_results} and Table~\ref{tab:sinus_results_summary} show that all methods were able to learn the sinus regression task well. The node perturbation methods converged to training and test losses close to the backpropagation baseline, with IS-NP and fan-in NP reaching nearly identical loss values. WP ended at a slightly higher loss level, but remained close to the other perturbation methods. IS-NP reached the convergence criterion at approximately the same epoch as backpropagation, while fan-in NP, vanilla NP, and WP converged somewhat later. The standard deviations reported for the best loss and score values are small, indicating little variation across seeds. The fan-in NP curves show somewhat larger fluctuations during training, but without signs of sustained instability. Overall, all perturbation methods worked well as learning algorithms on this task.
 
-The estimator diagnostics show larger differences than the loss curves. The node perturbation methods have substantially higher cosine similarity than WP. IS-NP, fan-in NP, and vanilla NP obtain cosine similarities of \(0.812\), \(0.808\), and \(0.788\), respectively, while WP obtains \(0.524\). The same pattern appears in estimator variance. IS-NP, vanilla NP, and fan-in NP have variances of \(0.00649\), \(0.00717\), and \(0.00726\), respectively, whereas WP has a substantially larger variance of \(0.0555\).
+The estimator diagnostics show a clearer separation between WP and the node perturbation methods. The three node perturbation methods obtained similar cosine similarity and variance values, with only small differences between them. Vanilla NP had the highest cosine similarity, followed by fan-in NP and IS-NP, while the variance followed the same ordering, meaning that the methods with slightly higher cosine similarity also had slightly higher estimator variance. The differences between the node perturbation methods are therefore small and do not give a clear distinction between them. WP had both lower cosine similarity and higher estimator variance than all node perturbation methods. The reported standard deviations are small for both metrics, indicating that these diagnostic results are consistent across seeds.
 
-For the sinus regression task, the differences in estimator quality are therefore much larger than the differences in final training and test performance. All methods are able to learn the task to a similar final loss, but the perturbation estimators differ clearly in directional alignment and variance. The node perturbation methods show better estimator diagnostics than WP, while IS-NP has the highest cosine similarity and the lowest variance among the perturbation-based methods.
+The metric-wise ranking in Table~\ref{tab:sinus_results_ranking} gives the lowest average rank to IS-NP, followed by fan-in NP, vanilla NP, and WP. The clearest distinction is between WP and the node perturbation methods, with WP receiving the lowest rank on every reported metric. Among the three node perturbation methods, the best-ranked method varies across individual metrics, especially for cosine similarity and variance. However, the average ranks separate the methods relatively clearly in the order IS-NP, fan-in NP, and vanilla NP.
 
 \begin{figure}[!htbp]
     \centering
     \begin{subfigure}{0.95\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_loss.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus/loss.pdf}
         \caption{Training and test loss.}
         \label{fig:sinus_loss}
     \end{subfigure}
@@ -21,35 +24,51 @@ For the sinus regression task, the differences in estimator quality are therefor
 
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_cosine.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus/cosine.pdf}
         \caption{Cosine similarity.}
         \label{fig:sinus_cosine}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_variance.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus/variance.pdf}
         \caption{Estimator variance.}
         \label{fig:sinus_variance}
     \end{subfigure}
     \caption{Results for the sinus regression task.}
     \label{fig:sinus_results}
 \end{figure}
+
+\begin{sidewaystable}[!p]
+    \centering
+    \scriptsize
+    \caption{Summary metrics for the sinus regression task. Values are mean \(\pm\) standard deviation across seeds.}
+    \label{tab:sinus_results_summary}
+    \resizebox{\textheight}{!}{\input{ResultAssets/tables/sinus/summary.tex}}
+\end{sidewaystable}
+
+\begin{table}[!htbp]
+    \centering
+    \scriptsize
+    \caption{Metric-wise ranking of perturbation methods for the sinus regression task. Lower ranks are better.}
+    \label{tab:sinus_results_ranking}
+    \resizebox{\textwidth}{!}{\input{ResultAssets/tables/sinus/ranking.tex}}
+\end{table}
 \FloatBarrier
 
 \subsection{California Housing Regression}
 
-Backpropagation reaches the lowest training and test loss on the California housing task. It obtains a best test loss of \(0.256\), corresponding to a test \(R^2\) of \(0.741\). Among the perturbation methods, IS-NP obtains the lowest test loss, with \(0.338\) and a test \(R^2\) of \(0.659\). WP follows with a test loss of \(0.345\), vanilla NP reaches \(0.354\), and fan-in NP reaches \(0.390\). WP reaches its convergence criterion earliest among all methods, at epoch \(18\), while IS-NP converges later at epoch \(54\).
+Figure~\ref{fig:california_housing_results} and Table~\ref{tab:california_housing_results_summary} show that all methods were able to learn meaningful predictors on the California housing task, although the perturbation methods converged to higher training and test loss levels than backpropagation. Among the perturbation methods, the three node perturbation methods obtained very similar training and test performance, with no clear separation between them. WP reached the convergence criterion earliest among the perturbation methods, but ended with the highest training and test loss. The standard deviations reported for the best loss and score values are small for BP, IS-NP, vanilla NP, and WP, while fan-in NP shows somewhat larger variation across seeds.
 
-The estimator diagnostics show clearer separation between the methods. Vanilla NP has the highest cosine similarity, with \(0.473\), followed closely by IS-NP with \(0.459\). Fan-in NP obtains \(0.368\), while WP is substantially lower at \(0.118\). The variance ranking is different: IS-NP has the lowest estimator variance at \(0.0162\), followed by vanilla NP at \(0.0200\), fan-in NP at \(0.0847\), and WP at \(0.792\). Thus, WP has the weakest estimator diagnostics despite converging quickly in terms of training loss.
+The estimator diagnostics show a clear separation between WP and the node perturbation methods. Vanilla NP obtained the highest cosine similarity, followed closely by IS-NP, while fan-in NP was lower than both. WP had a substantially lower cosine similarity than all node perturbation methods. The variance ranking follows a similar pattern: IS-NP and vanilla NP obtained the lowest estimator variance values, fan-in NP was higher, and WP had the highest variance. The clearest distinction is therefore between WP and the node perturbation methods, but fan-in NP is also separated from IS-NP and vanilla NP on both diagnostic metrics.
 
-For the California housing task, the relationship between estimator diagnostics and final performance is less direct than on the harder classification tasks. IS-NP has the lowest variance and the best final performance among the perturbation methods, while vanilla NP has slightly higher cosine similarity but worse final loss. WP has low cosine similarity and high variance, but still reaches a competitive final loss and the fastest convergence criterion. Overall, the perturbation methods all learn meaningful predictors, but the ranking between them is less clean than on the more complex tasks.
+The metric-wise ranking in Table~\ref{tab:california_housing_results_ranking} gives the lowest average rank to vanilla NP. Fan-in NP and IS-NP obtain the same average rank, while WP has the highest average rank. The ranking is less uniform than for the sinus task: vanilla NP ranks best on the loss, score, and cosine metrics, IS-NP ranks best on variance, and WP ranks best on convergence epoch. The clearest distinction is again between WP and the node perturbation methods for final performance and estimator diagnostics, while the ordering among the three node perturbation methods depends on the metric considered.
 
 \begin{figure}[!htbp]
     \centering
     \begin{subfigure}{0.95\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing_loss.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing/loss.pdf}
         \caption{Training and test loss.}
         \label{fig:california_housing_loss}
     \end{subfigure}
@@ -58,42 +77,58 @@ For the California housing task, the relationship between estimator diagnostics 
 
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing_cosine.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing/cosine.pdf}
         \caption{Cosine similarity.}
         \label{fig:california_housing_cosine}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing_variance.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/california_housing/variance.pdf}
         \caption{Estimator variance.}
         \label{fig:california_housing_variance}
     \end{subfigure}
     \caption{Results for the California housing regression task.}
     \label{fig:california_housing_results}
 \end{figure}
+
+\begin{sidewaystable}[!p]
+    \centering
+    \scriptsize
+    \caption{Summary metrics for the California housing regression task. Values are mean \(\pm\) standard deviation across seeds.}
+    \label{tab:california_housing_results_summary}
+    \resizebox{\textheight}{!}{\input{ResultAssets/tables/california_housing/summary.tex}}
+\end{sidewaystable}
+
+\begin{table}[!htbp]
+    \centering
+    \scriptsize
+    \caption{Metric-wise ranking of perturbation methods for the California housing regression task. Lower ranks are better.}
+    \label{tab:california_housing_results_ranking}
+    \resizebox{\textwidth}{!}{\input{ResultAssets/tables/california_housing/ranking.tex}}
+\end{table}
 \FloatBarrier
 
 \subsection{MNIST Classification}
 
-Backpropagation achieves the best performance on the MNIST classification task, reaching a best test loss of \(0.00588\) and a best test accuracy of \(0.976\). Among the perturbation methods, IS-NP performs best, with a best test loss of \(0.0122\) and a best test accuracy of \(0.949\). Fan-in NP follows with a test loss of \(0.0199\) and accuracy of \(0.917\), while vanilla NP reaches \(0.0270\) and \(0.901\). WP performs worst among the perturbation methods, with a test loss of \(0.0418\) and test accuracy of \(0.810\). IS-NP also converges earlier than the other node perturbation methods, reaching the convergence criterion at epoch \(94\), compared with \(169\) for fan-in NP and \(189\) for vanilla NP.
+Figure~\ref{fig:mnist_results} and Table~\ref{tab:mnist_results_summary} show that all methods were able to learn meaningful representations for the MNIST classification task, but with clearly separated final performance levels. Backpropagation achieved the highest test accuracy at 97.6% and converged substantially faster than the perturbation methods. All perturbation methods converged more slowly and to higher loss levels than backpropagation, but still achieved meaningful classification performance. Among the perturbation methods, IS-NP obtained the highest test accuracy at 94.9%, followed by fan-in NP, vanilla NP, and WP. The same ordering is visible in the test loss values, where the separation between the perturbation methods is even clearer. The reported standard deviations are small relative to the differences between methods, indicating that the ordering is consistent across seeds.
 
-The estimator diagnostics show a clear separation between WP and the node perturbation methods. IS-NP and fan-in NP have the highest cosine similarities, with \(0.215\) and \(0.210\), respectively. Vanilla NP is lower at \(0.135\), while WP is close to zero at \(0.00973\). The variance results show the same overall pattern. IS-NP has the lowest estimator variance at \(1.18\cdot 10^{-5}\), followed by fan-in NP at \(1.48\cdot 10^{-5}\), vanilla NP at \(4.33\cdot 10^{-5}\), and WP at \(0.00793\).
+The estimator diagnostics follow the same ordering as the performance metrics. IS-NP obtained both the highest cosine similarity and the lowest estimator variance, followed by fan-in NP, vanilla NP, and WP. WP was separated from the other perturbation methods on both diagnostic metrics, with substantially lower cosine similarity and higher variance. The gap between the node perturbation methods is also visible: fan-in NP is close to IS-NP, while vanilla NP is clearly lower in cosine similarity and higher in variance.
 
-For MNIST, the relationship between estimator diagnostics and learning performance is clear. The methods with higher cosine similarity and lower estimator variance also obtain better training and test performance. IS-NP has the strongest diagnostics among the perturbation methods and also reaches the best perturbation-based loss and accuracy. WP has the weakest diagnostics and the weakest final performance.
+The metric-wise ranking in Table~\ref{tab:mnist_results_ranking} is highly consistent across metrics. IS-NP receives the best average rank and ranks first on every reported metric. Fan-in NP ranks second on all metrics, followed by vanilla NP and WP. The resulting ordering is therefore IS-NP, fan-in NP, vanilla NP, and WP, with only the convergence epoch producing a small deviation between vanilla NP and WP.
 
 \begin{figure}[!htbp]
     \centering
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist_loss.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/loss.pdf}
         \caption{Training and test loss.}
         \label{fig:mnist_loss}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist_accuracy.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/accuracy.pdf}
         \caption{Training and test accuracy.}
         \label{fig:mnist_accuracy}
     \end{subfigure}
@@ -102,42 +137,58 @@ For MNIST, the relationship between estimator diagnostics and learning performan
 
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist_cosine.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/cosine.pdf}
         \caption{Cosine similarity.}
         \label{fig:mnist_cosine}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist_variance.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/mnist/variance.pdf}
         \caption{Estimator variance.}
         \label{fig:mnist_variance}
     \end{subfigure}
     \caption{Results for the MNIST classification task.}
     \label{fig:mnist_results}
 \end{figure}
+
+\begin{sidewaystable}[!p]
+    \centering
+    \scriptsize
+    \caption{Summary metrics for the MNIST classification task. Values are mean \(\pm\) standard deviation across seeds.}
+    \label{tab:mnist_results_summary}
+    \resizebox{\textheight}{!}{\input{ResultAssets/tables/mnist/summary.tex}}
+\end{sidewaystable}
+
+\begin{table}[!htbp]
+    \centering
+    \scriptsize
+    \caption{Metric-wise ranking of perturbation methods for the MNIST classification task. Lower ranks are better.}
+    \label{tab:mnist_results_ranking}
+    \resizebox{\textwidth}{!}{\input{ResultAssets/tables/mnist/ranking.tex}}
+\end{table}
 \FloatBarrier
 
 \subsection{CIFAR-10 Classification}
 
-Backpropagation achieves the best performance on the CIFAR-10 classification task, reaching a best test loss of \(0.0678\) and a best test accuracy of \(0.499\). The perturbation methods reduce the loss, but plateau at substantially worse values. Among the perturbation methods, IS-NP performs best, with a best test loss of \(0.0806\) and a best test accuracy of \(0.339\). Fan-in NP follows with a test loss of \(0.0820\) and accuracy of \(0.321\), while vanilla NP reaches \(0.0832\) and \(0.296\). WP performs worst, with a test loss of \(0.0851\) and test accuracy of \(0.264\).
+Figure~\ref{fig:cifar10_results} and Table~\ref{tab:cifar10_results_summary} show that the gap between backpropagation and the perturbation methods is larger on CIFAR-10 than on the previous tasks. The perturbation methods remain far from the backpropagation baseline and do not learn the task well, although they still achieve accuracies clearly above random guessing. IS-NP obtains the highest test accuracy among the perturbation methods at approximately 36%, compared with the 10% chance level. Backpropagation also shows signs of overfitting, with training loss continuing to decrease while test loss remains much flatter. Among the perturbation methods, the final performance follows the same ordering as for MNIST: IS-NP, fan-in NP, vanilla NP, and WP. The reported standard deviations are small relative to the differences between the perturbation methods, indicating that this ordering is consistent across seeds.
 
-The estimator diagnostics show the same ordering as the learning curves. IS-NP has the highest cosine similarity among the perturbation methods, with \(0.0483\), followed by fan-in NP at \(0.0436\), vanilla NP at \(0.0260\), and WP at \(9.92\cdot 10^{-4}\). The variance results also separate WP clearly from the node perturbation methods. IS-NP has the lowest variance at \(1.22\cdot 10^{-5}\), followed by fan-in NP at \(1.31\cdot 10^{-5}\), vanilla NP at \(3.65\cdot 10^{-5}\), and WP at \(0.0355\).
+The estimator diagnostics follow the same ordering as the performance metrics. IS-NP obtains the highest cosine similarity and the lowest estimator variance, followed by fan-in NP, vanilla NP, and WP. WP is again clearly separated from the node perturbation methods, with substantially lower cosine similarity and higher estimator variance. Compared with the regression tasks, the differences between the three node perturbation methods are also more visible on CIFAR-10.
 
-For CIFAR-10, the relationship between estimator diagnostics and learning performance is clear. The methods with higher cosine similarity and lower estimator variance also reach better training and test performance. Compared with the simpler tasks, the differences between perturbation methods are more visible, and the gap between all perturbation methods and backpropagation is substantially larger.
+The metric-wise ranking in Table~\ref{tab:cifar10_results_ranking} is highly consistent across metrics. IS-NP obtains the best average rank, followed by fan-in NP, vanilla NP, and WP. This ordering appears for all reported performance and estimator-diagnostic metrics. The only exception is convergence epoch, where the ordering is reversed, with WP reaching the convergence criterion earliest and IS-NP latest. Apart from this convergence metric, the ranking gives a clear separation between all four perturbation methods.
 
 \begin{figure}[!htbp]
     \centering
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10_loss.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/loss.pdf}
         \caption{Training and test loss.}
         \label{fig:cifar10_loss}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10_accuracy.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/accuracy.pdf}
         \caption{Training and test accuracy.}
         \label{fig:cifar10_accuracy}
     \end{subfigure}
@@ -146,20 +197,49 @@ For CIFAR-10, the relationship between estimator diagnostics and learning perfor
 
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10_cosine.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/cosine.pdf}
         \caption{Cosine similarity.}
         \label{fig:cifar10_cosine}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10_variance.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/cifar10/variance.pdf}
         \caption{Estimator variance.}
         \label{fig:cifar10_variance}
     \end{subfigure}
     \caption{Results for the CIFAR-10 classification task.}
     \label{fig:cifar10_results}
 \end{figure}
+
+\begin{sidewaystable}[!p]
+    \centering
+    \scriptsize
+    \caption{Summary metrics for the CIFAR-10 classification task. Values are mean \(\pm\) standard deviation across seeds.}
+    \label{tab:cifar10_results_summary}
+    \resizebox{\textheight}{!}{\input{ResultAssets/tables/cifar10/summary.tex}}
+\end{sidewaystable}
+
+\begin{table}[!htbp]
+    \centering
+    \scriptsize
+    \caption{Metric-wise ranking of perturbation methods for the CIFAR-10 classification task. Lower ranks are better.}
+    \label{tab:cifar10_results_ranking}
+    \resizebox{\textwidth}{!}{\input{ResultAssets/tables/cifar10/ranking.tex}}
+\end{table}
+\FloatBarrier
+
+\subsection{Aggregate Ranking of Perturbation Methods}
+Table~\ref{tab:aggregate_perturbation_ranking} summarizes the metric-wise rankings across the four learning problems. IS-NP obtains the lowest average rank on every reported metric and is therefore ranked best overall. It also has the lowest estimator variance on every individual task. Fan-in NP obtains the second-best overall ranking and is clearly ahead of vanilla NP, particularly on the training and test loss metrics. Vanilla NP ranks third overall, while WP obtains the highest average rank on every metric and is clearly the weakest perturbation method in the aggregate ranking.
+
+
+\begin{table}[!htbp]
+    \centering
+    \scriptsize
+    \caption{Aggregate metric-wise ranking of perturbation methods across the four learning problems. Values are average ranks across tasks, and lower values are better.}
+    \label{tab:aggregate_perturbation_ranking}
+    \resizebox{\textwidth}{!}{\input{ResultAssets/tables/aggregate_perturbation_ranking.tex}}
+\end{table}
 \FloatBarrier
 
 \subsection{Scaled Input Sensitivity}
@@ -186,13 +266,4 @@ The scaled-input experiment therefore separates the methods more clearly than th
     \caption{Effect of scaling the sinus input range from $[-1, 1]$ to $[-5, 5]$.}
     \label{fig:scaled_input_results}
 \end{figure}
-\FloatBarrier
-
-\begin{sidewaystable}[!p]
-    \centering
-    \scriptsize
-    \caption{Summary of training performance, estimator alignment, estimator variance, and convergence speed.}
-    \label{tab:results_summary}
-    \input{ResultAssets/tables/results_summary.tex}
-\end{sidewaystable}
 \FloatBarrier

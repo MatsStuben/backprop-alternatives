@@ -1,0 +1,17 @@
+Task,Method,Train loss,Test loss,Train score,Test score,Conv. epoch,Cosine,Variance
+Sinus,IS NP,1.0,2.0,1.0,2.0,1.0,3.0,1.0
+Sinus,Fan-in NP,2.0,1.0,2.0,1.0,2.0,2.0,3.0
+Sinus,Vanilla NP,3.0,3.0,3.0,3.0,3.0,1.0,2.0
+Sinus,WP,4.0,4.0,4.0,4.0,4.0,4.0,4.0
+California Housing,IS NP,3.0,3.0,3.0,3.0,2.0,2.0,1.0
+California Housing,Fan-in NP,2.0,2.0,2.0,2.0,3.0,3.0,3.0
+California Housing,Vanilla NP,1.0,1.0,1.0,1.0,4.0,1.0,2.0
+California Housing,WP,4.0,4.0,4.0,4.0,1.0,4.0,4.0
+MNIST,IS NP,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+MNIST,Fan-in NP,2.0,2.0,2.0,2.0,2.0,2.0,2.0
+MNIST,Vanilla NP,3.0,3.0,3.0,3.0,4.0,3.0,3.0
+MNIST,WP,4.0,4.0,4.0,4.0,3.0,4.0,4.0
+CIFAR-10,IS NP,1.0,1.0,1.0,1.0,4.0,1.0,1.0
+CIFAR-10,Fan-in NP,2.0,2.0,2.0,2.0,3.0,2.0,2.0
+CIFAR-10,Vanilla NP,3.0,3.0,3.0,3.0,2.0,3.0,3.0
+CIFAR-10,WP,4.0,4.0,4.0,4.0,1.0,4.0,4.0

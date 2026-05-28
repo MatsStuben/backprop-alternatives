@@ -1,0 +1,5 @@
+Method,Train loss,Test loss,Train score,Test score,Conv. epoch,Cosine,Variance,Overall
+IS NP,1,1,1,1,1,1,1,1.0
+Fan-in NP,2,2,2,2,2,2,2,2.0
+Vanilla NP,3,3,3,3,4,3,3,3.142857142857143
+WP,4,4,4,4,3,4,4,3.857142857142857
