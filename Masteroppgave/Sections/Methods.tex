@@ -182,7 +182,7 @@ Kaiming-uniform-style weights; fan-in-dependent uniform biases \\
 
 The perturbation estimators used in the experiments are the same score-function-style estimators derived in Chapters~\ref{ch:theory} and~\ref{ch:original_theoretical_contribution}. This section therefore does not rederive the learning rules, but specifies the implementation choices used in the empirical evaluation. These choices are important because they determine how the theoretical estimators are turned into practical mini-batch training algorithms.
 
-All learning methods are trained using mini-batches. For backpropagation, this is the standard mini-batch SGD update: the MSE loss is averaged over the mini-batch, the gradient is computed by backpropagation, and the parameters are updated with SGD. No momentum, Adam, weight decay, or learning-rate schedule is used. Backpropagation is therefore not listed as a separate algorithm below, since it is the standard SGD implementation of the gradient computation described in Chapter~\ref{ch:theory}. It is included only as the reference method against which the perturbation methods are compared.
+All learning methods are trained using mini-batches. The task-specific mini-batch sizes are given in Table~\ref{tab:task_training_protocol}. For backpropagation, this is the standard mini-batch SGD update: the MSE loss is averaged over the mini-batch, the gradient is computed by backpropagation, and the parameters are updated with SGD. No momentum, Adam, weight decay, or learning-rate schedule is used. Backpropagation is therefore not listed as a separate algorithm below, since it is the standard SGD implementation of the gradient computation described in Chapter~\ref{ch:theory}. It is included only as the reference method against which the perturbation methods are compared.
 
 For the perturbation methods, independent perturbations are sampled for each example in the mini-batch. Thus, each example produces its own noisy forward pass and its own scalar loss. The parameter update is then obtained by averaging the resulting per-example update estimates across the mini-batch. Sampling independent perturbations per example is important because the batch-mean baseline relies on variation between perturbations inside the same mini-batch. If the same perturbation were shared by the whole batch, subtracting the batch mean would remove the useful scalar learning signal.
 
@@ -325,15 +325,49 @@ would satisfy this condition because the baseline for example \(i\) would not in
 \FloatBarrier
 
 \subsection{Evaluation metrics}
+\label{sec:evaluation_metrics}
 
 In supervised machine learning, the central question is how well a trained model performs on unseen data. The most important empirical quantity is therefore the test loss, since this measures whether the learned function generalizes beyond the examples used for optimization. Training loss is also important, because it shows whether the learning rule is able to reduce the objective on the data it is trained on. These two quantities therefore form the main performance measures in the empirical evaluation.
 
 However, training and test loss provide limited diagnostic information. They show how well a method works, but not why it works or fails. A perturbation-based method may perform poorly because its estimated updates are poorly aligned with the true descent direction, or because the estimates fluctuate strongly between perturbation samples. To better understand the learning curves, we therefore also measure directional alignment and estimator variance. These are natural diagnostics for perturbation-based learning, and they are especially relevant in this thesis because they connect directly to the theoretical results in Chapter~\ref{ch:original_theoretical_contribution}: the expectation-matching result concerns the average update direction, while the variance theorem predicts a difference in estimator variability. The following sections describe the three metric groups used in the experiments, why they matter, and how they are measured in this thesis.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\caption{Training and estimator-diagnostic settings for each learning problem.}
+\label{tab:task_training_protocol}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{2.1cm}
+    >{\centering\arraybackslash}p{1.35cm}
+    >{\centering\arraybackslash}p{1.45cm}
+    >{\centering\arraybackslash}p{1.45cm}
+    >{\centering\arraybackslash}p{1.15cm}
+    >{\raggedright\arraybackslash}X
+    >{\centering\arraybackslash}p{1.75cm}
+}
+\toprule
+\textbf{Task} &
+\textbf{Train batch} &
+\textbf{Eval batch} &
+\textbf{Run epochs} &
+\textbf{Seeds} &
+\textbf{Diagnostic checkpoints} &
+\textbf{Gradient estimates per mini-batch} \\
+\midrule
+Sinus regression & 64 & 512 & 500 & 10 & Epochs 1, 120, and 240 of a 240-epoch BP diagnostic run. & 240 \\
+California housing & 256 & 4096 & 200 & 5 & Epochs 1, 25, and 50 of a 50-epoch BP diagnostic run. & 200 \\
+MNIST & 128 & 1024 & 400 & 5 & Epochs 1, 10, and 20 of a 20-epoch BP diagnostic run. & 100 \\
+CIFAR-10 & 128 & 1024 & 80 & 5 & Epochs 1, 25, and 50 of a 50-epoch BP diagnostic run. & 10 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\FloatBarrier
+
 \subsubsection{Training and test performance}
 
 Training and test performance measure how well the learning rule solves the supervised learning problem. Training loss shows whether the method can reduce the objective on the data used for optimization, while test loss measures whether the learned model generalizes to unseen data. These are the most important metrics in the empirical evaluation, since minimizing the loss and obtaining good test performance is the central goal of training the network.
 
-In all experiments, the loss is the mean squared error (MSE) between the network prediction and the target. For the regression tasks, this is simply the squared difference between the predicted scalar output and the scalar target, averaged over examples. For the classification tasks, the class labels are represented as one-hot vectors, and the MSE is computed between the 10-dimensional network output and the one-hot target vector. Classification performance is also evaluated using accuracy, where the predicted class is taken to be the output component with the largest value. Each experiment is repeated across multiple random seeds: 10 seeds for the sinus task and 5 seeds for the other tasks, where computational cost is higher. The loss and accuracy curves are plotted as averages across seeds as functions of training epoch. In addition, the summary tables report the mean \(\pm\) standard deviation across seeds, where each entry is first computed separately for each seed; for example, the reported best test loss is the average of the best test loss reached in each individual seed. The convergence epoch is defined as the first epoch at which the test loss has achieved \(90\%\) of the total improvement from the initial test loss to the best test loss observed during training.
+In all experiments, the loss is the mean squared error (MSE) between the network prediction and the target. For the regression tasks, this is simply the squared difference between the predicted scalar output and the scalar target, averaged over examples. For the classification tasks, the class labels are represented as one-hot vectors, and the MSE is computed between the 10-dimensional network output and the one-hot target vector. Classification performance is also evaluated using accuracy, where the predicted class is taken to be the output component with the largest value. The number of training epochs, evaluation batch sizes, and random seeds used for each task are shown in Table~\ref{tab:task_training_protocol}. The loss and accuracy curves are plotted as averages across seeds as functions of training epoch. In addition, the summary tables report the mean \(\pm\) standard deviation across seeds, where each entry is first computed separately for each seed; for example, the reported best test loss is the average of the best test loss reached in each individual seed. The convergence epoch is defined as the first epoch at which the test loss has achieved \(90\%\) of the total improvement from the initial test loss to the best test loss observed during training.
 
 These metrics are interpreted in three main ways. First, the best training and test values show the final performance reached by each method. Second, the convergence epoch indicates how quickly the method approaches its best observed performance. Third, the shape of the learning curves gives information about stability: smooth curves indicate stable learning dynamics, while large fluctuations or spikes suggest that the updates are noisy or unstable. Together, these quantities show not only how well each method performs, but also how efficiently and reliably it learns.
 
@@ -399,7 +433,7 @@ These are then averaged before computing cosine similarity:
     \sum_{k=1}^{K}
     \widehat{u}^{(k)}_m,
 \]
-Averaging over \(K\) perturbation samples makes the estimate less dependent on a single lucky or unlucky perturbation draw, and therefore gives a more reliable estimate of the expected update direction. However, increasing \(K\) also increases memory use and computation time. The value of \(K\) is therefore task-specific, with fewer perturbation samples used for the larger image models, as shown in Table~\ref{tab:task_training_protocol}. The update directions are stored before multiplication by the learning rate, so the cosine comparison measures directional quality independently of the learning-rate choice. The batch-level cosine similarity is then computed as
+Averaging over \(K\) independent gradient estimates makes the result less dependent on a single lucky or unlucky perturbation draw, and therefore gives a more reliable estimate of the expected update direction. However, increasing \(K\) also increases memory use and computation time. The task-specific values of \(K\), listed as gradient estimates per mini-batch in Table~\ref{tab:task_training_protocol}, are therefore smaller for the larger image models. The update directions are stored before multiplication by the learning rate, so the cosine comparison measures directional quality independently of the learning-rate choice. The batch-level cosine similarity is then computed as
 \[
     \cos(\bar{u}_m,u_{\mathrm{BP}})
     =
@@ -469,18 +503,13 @@ When the estimator is unbiased for the gradient \(g=\nabla_\theta L(\theta)\), t
     (\widehat{g}-g)^\top
     \right].
 \]
-This is useful here because the exact gradient can be computed using backpropagation. Instead of estimating variance by subtracting the empirical mean of the perturbation samples, we subtract the exact backpropagation direction. However, \(\Sigma\) is a full covariance matrix over all parameters, which is too large to report directly. We therefore reduce it to a scalar by averaging the diagonal entries of \(\Sigma\). For \(P\) trainable parameters, this gives
+This is useful here because the exact gradient can be computed using backpropagation. Instead of estimating variance by subtracting the empirical mean of the perturbation samples, we subtract the exact backpropagation direction. However, \(\Sigma\) is a full covariance matrix over all parameters, which is too large to report directly. We therefore reduce it to a scalar by averaging its diagonal entries. Each diagonal entry is the variance of one parameter update component, corresponding to one weight or bias. The resulting quantity,
 \[
-    \frac{1}{P}
-    \sum_{p=1}^{P}
-    \Sigma_{pp}
-    =
-    \frac{1}{P}
-    \operatorname{tr}(\Sigma).
+    \frac{1}{P}\operatorname{tr}(\Sigma),
 \]
-This is the average variance per parameter.
+is the average variance per parameter.
 
-The measurement procedure follows the same frozen-checkpoint structure as the cosine-similarity calculation. For each checkpoint, mini-batch, and perturbation method, the exact backpropagation descent direction \(u_{\mathrm{BP}}\) is computed and flattened over all weights and biases. We then draw \(K\) independent perturbation-based update estimates,
+The measurement procedure follows the same frozen-checkpoint structure as the cosine-similarity calculation, using the diagnostic checkpoints and task-specific values of \(K\) listed in Table~\ref{tab:task_training_protocol}. For each checkpoint, mini-batch, and perturbation method, the exact backpropagation descent direction \(u_{\mathrm{BP}}\) is computed and flattened over all weights and biases. We then draw \(K\) independent perturbation-based gradient estimates,
 \[
     \widehat{u}^{(1)}_m,\ldots,\widehat{u}^{(K)}_m,
 \]
@@ -495,24 +524,32 @@ using the same frozen parameters and the same mini-batch. The empirical estimate
     \widehat{u}^{(k)}_m - u_{\mathrm{BP}}
     \right\|_2^2 .
 \]
-Here, the factor \(1/P\) averages over parameters, while the factor \(1/K\) averages over perturbation samples.
+Here, the factor \(1/P\) averages over parameters, while the factor \(1/K\) averages over independent gradient estimates.
 
-As for cosine similarity, this variance estimate is averaged over all mini-batches in one full pass through the training set and over random seeds, using 10 seeds for the sinus task and 5 seeds for the other tasks. In the main results, the three checkpoint values are also averaged to give one final variance value per method and dataset. The summary tables report the mean \(\pm\) standard deviation of this aggregate variance across seeds. Checkpoint-specific variance plots are also generated and included in the appendix, while the main results focus on the aggregate variance plots.
+As for cosine similarity, this variance estimate is averaged over all mini-batches in one full pass through the training set and over random seeds, with the number of seeds given in Table~\ref{tab:task_training_protocol}. In the main results, the three checkpoint values are also averaged to give one final variance value per method and dataset. The summary tables report the mean \(\pm\) standard deviation of this aggregate variance across seeds. Checkpoint-specific variance plots are also generated and included in the appendix, while the main results focus on the aggregate variance plots.
 
 \subsection{Hyperparameter selection and experimental protocol}
 
-Hyperparameter tuning is especially important for perturbation-based learning methods because their performance depends strongly on both the learning rate and the perturbation scale. The learning rate controls the size of the parameter update, while the perturbation scale controls the size of the random changes used to estimate the gradient. If the perturbation scale is too small, the resulting loss differences can become dominated by numerical noise or minibatch variability; if it is too large, the perturbation no longer provides a useful local estimate of the gradient. Similarly, a learning rate that is too small can make learning unnecessarily slow, while a learning rate that is too large can make the already noisy updates unstable. A fair comparison therefore requires tuning each method carefully rather than relying on a single shared setting.
+Hyperparameter tuning is important because each method must be given a fair chance to learn. If tuning is not done carefully, the results may reflect the chosen hyperparameters more than the learning rule itself. If the learning rate or perturbation scale is too small, learning can become unnecessarily slow or the loss differences can become too weak to give useful updates. If they are too large, the updates can become unstable or no longer reflect a useful local learning signal. Since the learning rate and perturbation scale interact in ways that are not always obvious or trivial, fair tuning requires a systematic search.
 
-For each learning problem, the dataset split, preprocessing, network architecture, batch size, and evaluation procedure are held fixed across learning rules. This ensures that differences in performance primarily reflect the learning rule rather than differences in model capacity or data processing. The hyperparameters tuned separately for each method are the learning rate and, for perturbation-based methods, the perturbation scale \(\sigma\). Backpropagation only requires tuning the learning rate, while WP, vanilla NP, fan-in-scaled NP, and IS-NP each require tuning both the learning rate and perturbation scale. Each method is therefore given its own best hyperparameter setting for each task, since the goal is to compare well-tuned versions of the learning rules rather than force them to use identical hyperparameters.
+For each learning problem, the dataset split, preprocessing, network architecture, mini-batch size, and evaluation procedure are held fixed across learning rules. The tuned hyperparameters differ between methods:
+\begin{itemize}
+    \item \textbf{Backpropagation:} learning rate \(\eta\).
+    \item \textbf{Weight perturbation:} learning rate \(\eta\) and perturbation scale \(\sigma\).
+    \item \textbf{Vanilla node perturbation:} learning rate \(\eta\) and perturbation scale \(\sigma\).
+    \item \textbf{Fan-in-scaled node perturbation:} learning rate \(\eta\) and perturbation scale \(\sigma\).
+    \item \textbf{Input-scaled node perturbation:} learning rate \(\eta\) and perturbation scale \(\sigma\).
+\end{itemize}
+Each method is tuned separately for each task.
 
-The tuning procedure was carried out in two stages. First, the perturbation scale was tuned using the frozen-estimator diagnostics described above. For each task, a backpropagation model was trained and frozen at several checkpoints, and each perturbation method was evaluated over a range of candidate \(\sigma\) values. The main criteria in this stage were high cosine similarity and low estimator variance. The search started from broad ranges and was then narrowed until three nearby \(\sigma\) values remained for each method. These values formed the perturbation-scale axis of the subsequent training sweep.
+The tuning procedure was carried out in two phases. The first phase focused on selecting reasonable perturbation scales. This was done before tuning the learning rate, because the learning rate and perturbation scale interact in ways that can make training curves difficult to interpret. For example, slow learning could be caused by a learning rate that is too small, a perturbation scale that is too small, a perturbation scale that is too large, or some combination of these. To separate these effects as much as possible, we first evaluated candidate \(\sigma\) values using the frozen-estimator diagnostics from Section~\ref{sec:evaluation_metrics}. These diagnostics measure cosine similarity and estimator variance without applying parameter updates, and therefore do not depend on the learning rate. For each task and perturbation method, the search began with a broad set of five candidate \(\sigma\) values. The candidates were evaluated across the three diagnostic checkpoints and averaged. If the results showed a clear trend, for example that larger \(\sigma\) values improved cosine similarity and reduced variance, the range was shifted accordingly. This process was repeated with progressively narrower ranges until three nearby \(\sigma\) values were selected for each method: a central value with the best overall diagnostic trade-off, and one slightly smaller and one slightly larger value. These three values were then used as the perturbation-scale axis in the training grid search.
 
-Second, each method was trained over a local grid of learning rates and perturbation scales. For the perturbation methods this gave a \(3\times3\) grid, formed as the Cartesian product of three candidate learning rates and three candidate \(\sigma\) values. Backpropagation was tuned over learning rate only. The sweep runs were shorter than the final training runs, so that several nearby settings could be compared efficiently. The grid was then refined by inspecting the resulting learning curves, final losses, convergence behaviour, and signs of instability. In several cases the final learning rate was chosen as a conservative scaled version of the best grid region, especially for the noisier image tasks, while the perturbation scale was kept close to the value suggested by the frozen-estimator search. Table~\ref{tab:hyperparameter_search_grids} shows the local grids used during tuning and the final settings used for the thesis results.
+The second phase combined the selected perturbation scales with learning-rate tuning. For each perturbation method, we chose three initial learning rates based on preliminary runs and practical experience with the learning algorithms, giving a \(3\times3\) grid over learning rate and perturbation scale. The first goal in this phase was to check whether the learning-rate range was sensible. If the training curves generally improved when the learning rate increased, the range was shifted upward; if larger learning rates caused instability or worse final performance, the range was shifted downward. This stage was evaluated using actual training and test curves, with attention to convergence speed, final loss, and stability. Once the learning-rate range appeared reasonable, the full \(3\times3\) grid was inspected and refined. The grid was narrowed until the results were reasonably consistent and did not show a clear monotonic trend toward one edge of the grid, such as consistently better performance at the highest learning rate or largest perturbation scale. The aim was to choose a final setting from the interior of a stable region, rather than from a boundary where further improvement might simply require extending the search range. Table~\ref{tab:hyperparameter_search_grids} shows the final local grids and the selected hyperparameter settings used for the thesis results.
 
 \begin{sidewaystable}[!p]
 \centering
 \scriptsize
-\caption{Local hyperparameter grids used during tuning. For perturbation methods, the grid is the Cartesian product of the listed learning rates and perturbation scales. The selected setting is the final configuration used for the thesis results; some learning rates are conservative scaled refinements of the displayed grid region.}
+\caption{Local hyperparameter grids used during tuning. For perturbation methods, the grid is the Cartesian product of the listed learning rates and perturbation scales. The selected setting is the final configuration used for the thesis results and is shown as the central value of the displayed local grid.}
 \label{tab:hyperparameter_search_grids}
 \begin{tabularx}{\textheight}{
     >{\raggedright\arraybackslash}p{2.3cm}
@@ -530,27 +567,27 @@ Second, each method was trained over a local grid of learning rates and perturba
 \midrule
 Sinus &
 BP &
-\(\{0.500, 0.100, 0.150\}\) &
+\(\{0.075, 0.100, 0.125\}\) &
 -- &
 \textbf{\(\eta=0.100\)} \\
 Sinus &
 IS NP &
-\(\{0.200, 0.225, 0.250\}\) &
-\(\{0.150, 0.175, 0.200\}\) &
+\(\{0.125, 0.150, 0.175\}\) &
+\(\{0.125, 0.150, 0.175\}\) &
 \textbf{\(\eta=0.150,\ \sigma=0.150\)} \\
 Sinus &
 Fan-in NP &
-\(\{0.150, 0.175, 0.200\}\) &
-\(\{0.100, 0.125, 0.150\}\) &
+\(\{0.100, 0.1125, 0.125\}\) &
+\(\{0.075, 0.100, 0.125\}\) &
 \textbf{\(\eta=0.1125,\ \sigma=0.100\)} \\
 Sinus &
 Vanilla NP &
-\(\{0.100, 0.125, 0.150\}\) &
-\(\{0.300, 0.375, 0.450\}\) &
+\(\{0.0750, 0.0825, 0.0900\}\) &
+\(\{0.250, 0.300, 0.350\}\) &
 \textbf{\(\eta=0.0825,\ \sigma=0.300\)} \\
 Sinus &
 WP &
-\(\{0.050, 0.075, 0.100\}\) &
+\(\{0.0550, 0.0675, 0.0800\}\) &
 \(\{0.200, 0.225, 0.250\}\) &
 \textbf{\(\eta=0.0675,\ \sigma=0.225\)} \\
 \addlinespace
@@ -561,109 +598,79 @@ BP &
 \textbf{\(\eta=0.100\)} \\
 California housing &
 IS NP &
-\(\{0.020, 0.030, 0.040\}\) &
+\(\{0.0200, 0.0270, 0.0350\}\) &
 \(\{0.080, 0.100, 0.120\}\) &
 \textbf{\(\eta=0.0270,\ \sigma=0.100\)} \\
 California housing &
 Fan-in NP &
-\(\{0.015, 0.020, 0.025\}\) &
+\(\{0.0150, 0.0175, 0.0200\}\) &
 \(\{0.045, 0.0525, 0.060\}\) &
 \textbf{\(\eta=0.0175,\ \sigma=0.0525\)} \\
 California housing &
 Vanilla NP &
-\(\{0.020, 0.025, 0.030\}\) &
+\(\{0.0150, 0.0175, 0.0200\}\) &
 \(\{0.400, 0.450, 0.500\}\) &
 \textbf{\(\eta=0.0175,\ \sigma=0.450\)} \\
 California housing &
 WP &
-\(\{0.010, 0.0125, 0.015\}\) &
+\(\{0.0110, 0.0135, 0.0160\}\) &
 \(\{0.080, 0.100, 0.120\}\) &
 \textbf{\(\eta=0.0135,\ \sigma=0.100\)} \\
 \addlinespace
 MNIST &
 BP &
-\(\{0.800, 0.900, 0.950, 1.00, 1.10, 1.20, 1.30, 2.00, 4.00\}\) &
+\(\{0.400, 0.500, 0.600\}\) &
 -- &
 \textbf{\(\eta=0.500\)} \\
 MNIST &
 IS NP &
-\(\{0.110, 0.120, 0.130\}\) &
+\(\{0.0450, 0.0510, 0.0570\}\) &
 \(\{0.030, 0.0325, 0.035\}\) &
 \textbf{\(\eta=0.0510,\ \sigma=0.0325\)} \\
 MNIST &
 Fan-in NP &
-\(\{0.030, 0.0325, 0.035\}\) &
+\(\{0.0100, 0.0122, 0.0140\}\) &
 \(\{0.0080, 0.00875, 0.0095\}\) &
 \textbf{\(\eta=0.0122,\ \sigma=0.00875\)} \\
 MNIST &
 Vanilla NP &
-\(\{0.02125, 0.0225, 0.02375\}\) &
+\(\{0.00450, 0.00563, 0.00675\}\) &
 \(\{0.110, 0.120, 0.130\}\) &
 \textbf{\(\eta=0.00563,\ \sigma=0.120\)} \\
 MNIST &
 WP &
-\(\{0.01375, 0.0150, 0.01625\}\) &
+\(\{0.00300, 0.00375, 0.00450\}\) &
 \(\{0.025, 0.0275, 0.030\}\) &
 \textbf{\(\eta=0.00375,\ \sigma=0.0275\)} \\
 \addlinespace
 CIFAR-10 &
 BP &
-\(\{0.200\}\) &
+\(\{0.075, 0.100, 0.125\}\) &
 -- &
 \textbf{\(\eta=0.100\)} \\
 CIFAR-10 &
 IS NP &
-\(\{0.0283, 0.0300, 0.0317\}\) &
+\(\{0.0100, 0.0120, 0.0140\}\) &
 \(\{0.016, 0.0175, 0.01875\}\) &
 \textbf{\(\eta=0.0120,\ \sigma=0.0175\)} \\
 CIFAR-10 &
 Fan-in NP &
-\(\{0.0250, 0.0267, 0.0283\}\) &
+\(\{0.00550, 0.00667, 0.00800\}\) &
 \(\{0.0050, 0.0055, 0.0060\}\) &
 \textbf{\(\eta=0.00667,\ \sigma=0.0055\)} \\
 CIFAR-10 &
 Vanilla NP &
-\(\{0.0142, 0.0150, 0.0158\}\) &
+\(\{0.00320, 0.00400, 0.00480\}\) &
 \(\{0.165, 0.190, 0.215\}\) &
 \textbf{\(\eta=0.00400,\ \sigma=0.190\)} \\
 CIFAR-10 &
 WP &
-\(\{0.00550, 0.00600, 0.00650\}\) &
-\(\{0.011, 0.0125, 0.015\}\) &
+\(\{0.00120, 0.00160, 0.00200\}\) &
+\(\{0.0110, 0.0125, 0.0140\}\) &
 \textbf{\(\eta=0.00160,\ \sigma=0.0125\)} \\
 \bottomrule
 \end{tabularx}
 \end{sidewaystable}
-\FloatBarrier
-
-\begin{table}[!htbp]
-\centering
-\scriptsize
-\caption{Training and estimator-diagnostic settings for each learning problem.}
-\label{tab:task_training_protocol}
-\begin{tabularx}{\textwidth}{
-    >{\raggedright\arraybackslash}p{2.4cm}
-    >{\centering\arraybackslash}p{1.6cm}
-    >{\centering\arraybackslash}p{1.8cm}
-    >{\centering\arraybackslash}p{1.8cm}
-    >{\raggedright\arraybackslash}X
-    >{\centering\arraybackslash}p{2.0cm}
-}
-\toprule
-\textbf{Task} &
-\textbf{Train batch} &
-\textbf{Eval batch} &
-\textbf{Run epochs} &
-\textbf{Diagnostic checkpoints} &
-\textbf{Perturbations} \\
-\midrule
-Sinus regression & 64 & 512 & 500 & Epochs 1, 120, and 240 of a 240-epoch BP diagnostic run. & 240 \\
-California housing & 256 & 4096 & 200 & Epochs 1, 25, and 50 of a 50-epoch BP diagnostic run. & 200 \\
-MNIST & 128 & 1024 & 400 & Epochs 1, 10, and 20 of a 20-epoch BP diagnostic run. & 100 \\
-CIFAR-10 & 128 & 1024 & 80 & Epochs 1, 25, and 50 of a 50-epoch BP diagnostic run. & 10 \\
-\bottomrule
-\end{tabularx}
-\end{table}
 \FloatBarrier
 
 Finally, the selected configurations were run across multiple random seeds to check that the conclusions were not driven by a single favourable or unfavourable initialization.
