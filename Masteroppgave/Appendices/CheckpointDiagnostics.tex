@@ -1,7 +1,7 @@
 \subsection{Checkpoint-Specific Estimator Diagnostics}
 \label{app:checkpoint_diagnostics}
 
-This appendix shows the checkpoint-specific cosine similarity and estimator variance plots used to support the aggregate diagnostics in Chapter~\ref{ch:method} and Chapter~\ref{ch:results}. For each learning problem, the diagnostics are shown separately at the three frozen backpropagation checkpoints used in the empirical evaluation.
+This appendix shows the checkpoint-specific cosine similarity and estimator variance plots used to support the aggregate diagnostics in Chapter~\ref{ch:method} and Chapter~\ref{ch:results}. For each learning problem, the diagnostics are shown separately at the three frozen backpropagation checkpoints used in the empirical evaluation. The appendix also includes the checkpoint-specific plots for the scaled-input sinus diagnostic.
 
 \subsubsection{Sinus Regression}
 
@@ -49,6 +49,56 @@ This appendix shows the checkpoint-specific cosine similarity and estimator vari
     \end{subfigure}
     \caption{Checkpoint-specific estimator variance for the sinus regression task.}
     \label{fig:app_sinus_variance_checkpoints}
+\end{figure}
+\FloatBarrier
+
+\subsubsection{Scaled Input Sensitivity}
+\label{app:scaled_input_checkpoints}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input/cosine_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input/cosine_checkpoint_120.pdf}
+        \caption{Epoch 120.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input/cosine_checkpoint_240.pdf}
+        \caption{Epoch 240.}
+    \end{subfigure}
+    \caption{Checkpoint-specific cosine similarity for the scaled-input sinus diagnostic.}
+    \label{fig:app_sinus_scaled_input_cosine_checkpoints}
+\end{figure}
+
+\begin{figure}[!p]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input/variance_checkpoint_001.pdf}
+        \caption{Epoch 1.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input/variance_checkpoint_120.pdf}
+        \caption{Epoch 120.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input/variance_checkpoint_240.pdf}
+        \caption{Epoch 240.}
+    \end{subfigure}
+    \caption{Checkpoint-specific estimator variance for the scaled-input sinus diagnostic.}
+    \label{fig:app_sinus_scaled_input_variance_checkpoints}
 \end{figure}
 \FloatBarrier
 

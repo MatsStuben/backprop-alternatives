@@ -244,22 +244,20 @@ Table~\ref{tab:aggregate_perturbation_ranking} summarizes the metric-wise rankin
 
 \subsection{Scaled Input Sensitivity}
 
-Scaling the sinus input range from \([-1,1]\) to \([-5,5]\) changes the estimator diagnostics differently across methods. IS-NP and WP are only weakly affected by the input scaling, while vanilla NP and fan-in NP degrade substantially. For vanilla NP and fan-in NP, cosine similarity decreases clearly under the scaled input setting, whereas IS-NP remains close to its original level and WP changes comparatively little. The same pattern appears in estimator variance: vanilla NP and fan-in NP show a large increase in variance, while IS-NP and WP remain comparatively stable.
-
-The scaled-input experiment therefore separates the methods more clearly than the original sinus regression task. In the default \([-1,1]\) setting, all node perturbation methods have relatively high cosine similarity and low estimator variance. Under input scaling, the diagnostics for vanilla NP and fan-in NP worsen, while IS-NP remains the strongest node perturbation method. This result is consistent across both diagnostic metrics shown in Figure~\ref{fig:scaled_input_results}: the methods that account for the actual effect of input scale, WP and IS-NP, are less sensitive to the change than methods using fixed or layer-width-based node perturbation scales.
+Figure~\ref{fig:scaled_input_results} shows the effect of scaling the sinus input range from $[-1,1]$ to $[-5,5]$. For IS-NP and WP, the input scaling has little effect on either cosine similarity or estimator variance. In contrast, vanilla NP and fan-in NP both show substantially lower cosine similarity and higher estimator variance after the input range is scaled.
 
 \begin{figure}[!htbp]
     \centering
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input_cosine_comparison.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input/cosine_comparison.pdf}
         \caption{Cosine similarity.}
         \label{fig:sinus_scaled_input_cosine}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input_variance_comparison.pdf}
+        \includegraphics[width=\textwidth]{ResultAssets/figures/sinus_scaled_input/variance_comparison.pdf}
         \caption{Estimator variance.}
         \label{fig:sinus_scaled_input_variance}
     \end{subfigure}
