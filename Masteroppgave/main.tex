@@ -8,9 +8,17 @@
 \begin{document}
 % Inserting title page
 \import{./}{title}
+\newpage
+\thispagestyle{empty}
+\mbox{}
+\newpage
 
 % Defining front matter settings (Norsk: innstillinger for forord m.m.)
 \frontmatter
+
+\import{./Sections/}{Preface}
+\import{./Sections/}{Abstract}
+\import{./Sections/}{Sammendrag}
 
 % Inserting table of contents
 \tableofcontents
@@ -18,6 +26,7 @@
 % Inserting list of figures & list of tables
 \listoffigures
 \listoftables
+\import{./Sections/}{Acronyms}
 
 % Defining main matter settings (Norsk: innstillinger for hoveddelen av teksten)
 \mainmatter

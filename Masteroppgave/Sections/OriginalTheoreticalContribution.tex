@@ -1,16 +1,12 @@
 \section{Original Theoretical Contribution}
 \label{ch:original_theoretical_contribution}
 
-\subsection{Overview of the contribution}
+This chapter addresses the second research objective of the thesis: to build on the existing literature in order to clarify the relationship between common perturbation algorithms and use this understanding to develop a theoretically motivated variant of node perturbation. Chapter~2 identified an unresolved gap in the perturbation-learning literature: although WP and NP are often compared, their estimator-level relationship in nonlinear multilayer networks has not been fully characterized. Chapter~2 also introduced the local reparameterization trick of \textcite{kingma2015variational}, where weight-level noise is translated into equivalent pre-activation-level noise in the context of stochastic variational inference for Bayesian neural networks. Kingma et al. show that this reduce gradient-estimator variance. The natural question is therefore whether WP has the structure needed for a similar local reparameterization argument to be applied in the perturbation-learning setting.
 
-This chapter addresses the second research objective of the thesis: to further develop the theory of perturbation-based learning. In particular, it addresses the literature gap identified in Chapter~2, where the relationship between WP and NP was found to be incomplete in nonlinear multilayer networks. The main theoretical result is a direct comparison between WP and a newly derived node perturbation variant, input-scaled node perturbation (IS-NP). We show that WP and IS-NP estimate the same perturbation-smoothed objective in expectation, but that IS-NP has variance smaller than or equal to WP for each coordinate. This gives a precise theoretical sense in which IS-NP is a variance-reduced node-level version of WP, and therefore clarifies the relationship between weight-level and node-level perturbations in nonlinear multilayer networks. At the same time, the derivation motivates IS-NP as a new perturbation rule: by scaling node noise according to the actual incoming activation norm, IS-NP is expected to be better matched to varying activation scales than standard NP and fan-in-scaled NP, although this comparison is later treated as a scaling argument rather than a formal variance theorem.
-
-The line of reasoning behind the variance reduction proof is inspired by the local reparameterization trick of \textcite{kingma2015variational}, but the setting and contribution are different. Kingma et al. show, in the context of stochastic variational inference in Bayesian neural networks, that sampling equivalent activation-level noise instead of weight-level noise can reduce gradient estimator variance. This thesis uses the same underlying idea in a different setting: perturbation-based learning, where the question is not how to train a Bayesian neural network, but how WP and NP are related as scalar-feedback learning rules. We follow the same overall logic, but derive the corresponding result for perturbation-based learning. To the best of our knowledge, this connection has not previously been used to derive a node perturbation method from the noise induced by WP, nor to prove the corresponding variance reduction result for perturbation-based learning.
-
-The chapter proceeds by first deriving the pre-activation noise induced by Gaussian WP, and then using this result to define IS-NP. We then show that WP and IS-NP have the same expected update because they estimate the same perturbation-smoothed objective, before proving that IS-NP has lower or equal coordinate-wise variance. This gives a clean theoretical comparison between IS-NP and WP. The chapter also discusses how IS-NP relates to standard NP and fan-in-scaled NP, but that comparison is based on scaling intuition rather than an equivalent variance theorem.
+This chapter shows that the answer is yes. Gaussian WP induces a specific noise distribution at the level of pre-activations. By sampling this induced pre-activation noise directly, we obtain a new node perturbation rule, input-scaled node perturbation (IS-NP). We then show that WP and IS-NP estimate the same perturbation-smoothed objective in expectation, and that IS-NP has lower or equal coordinate-wise estimator variance than WP. The general variance-reduction logic follows the local reparameterization argument of \textcite{kingma2015variational}. However, the application of this logic to perturbation-based learning has, to the best of our knowledge, not previously been done in the literature. This includes the derivation of the WP-induced pre-activation noise in this setting, the construction of IS-NP from that induced noise, the expected-equivalence result between WP and IS-NP, and the corresponding variance comparison. The remainder of this chapter presents these contributions.
 \subsection{Pre-activation noise induced by WP}
 
-To compare WP and NP more directly, we first express the effect of WP at the same level where NP applies perturbations: the pre-activations. This allows us to characterize how independent weight perturbations propagate into neuron-level noise, and we can then compare this induced noise with the perturbations injected directly by NP.
+To apply the local reparameterization idea to perturbation-based learning, we need to know whether the effect of WP can be described directly at the level of pre-activations. In other words, if weight perturbations induce a well-defined distribution over pre-activation perturbations, then we can sample from that distribution directly instead of sampling perturbations at the weight level. This is the key step that makes it possible to compare WP with a node-level perturbation rule. We therefore begin by deriving the distribution of the pre-activation noise induced by Gaussian weight perturbations.
 Recall from Section~\ref{sec:weight_perturbation} that we modeled perturbations as a deterministic variable plus a scale times unit Gaussian noise. For neural networks, this corresponds to perturbing each weight and bias independently as
 \[
 \mathbf{W}^{\ell\prime}
@@ -43,7 +39,7 @@ b_j^\ell
 +
 \sigma \xi_{b,j}^\ell.
 \]
-This expression separates into a deterministic component and a stochastic component induced by the weight and bias perturbations:
+This expression separates into a deterministic pre-activation component and a stochastic component induced by the weight and bias perturbations:
 \[
 z^{\ell\prime}_j
 =
@@ -56,6 +52,14 @@ b_j^\ell
 \sigma \xi_{b,j}^\ell.
 \]
 
+Define the deterministic component as
+\begin{equation}
+\gamma^\ell_j
+:=
+\sum_i W^\ell_{ij} x^{\ell-1\prime}_i
++
+b_j^\ell.
+\end{equation}
 Define the induced pre-activation noise as
 \begin{equation}
 \Delta z^\ell_j
@@ -67,14 +71,18 @@ Define the induced pre-activation noise as
 \end{equation}
 
 We can now write the full pre-activation in compact form as
-\[
-z^{\ell\prime}_j = (\mathbf{W}^\ell \mathbf{x}^{\ell-1\prime})_j + b_j^\ell + \Delta z^\ell_j,
-\]
+\begin{equation}
+z^{\ell\prime}_j
+=
+\gamma^\ell_j
++
+\Delta z^\ell_j.
+\end{equation}
 
 \(\Delta z^\ell_j\) is the effect of weight perturbation at the pre-activation level that we wanted to express. We now want to characterize the distribution of this noise term.
 
-Condition on the incoming perturbed activations \(\mathbf{x}^{\ell-1\prime}\). Under this conditioning, the
-coefficients $x^{\ell-1\prime}_i$ are fixed, while the weight- and bias-noise variables
+We start by conditioning on the incoming perturbed activations \(\mathbf{x}^{\ell-1\prime}\). Under this conditioning, the
+factors $x^{\ell-1\prime}_i$ are fixed, while the weight- and bias-noise variables
 $\xi_{W,ij}^\ell$ and $\xi_{b,j}^\ell$ remain independent standard Gaussians. Therefore each weight-noise term
 $\sigma x^{\ell-1\prime}_i \xi_{W,ij}^\ell$ is Gaussian:
 \begin{equation}
@@ -104,18 +112,23 @@ and its conditional variance is
 =
 \sigma^2 \left(1+\left\|\mathbf{x}^{\ell-1\prime}\right\|^2\right).
 \end{equation}
-Thus, the pre-activation noise induced by Gaussian weight perturbation satisfies
+Thus,
 \begin{equation}
 \Delta z^\ell_j \mid \mathbf{x}^{\ell-1\prime}
 \sim
-\mathcal{N}\!\left(0, \sigma^2 \left(1+\left\|\mathbf{x}^{\ell-1\prime}\right\|^2\right)\right).
+\mathcal{N}(0,\delta^\ell_j),
+\end{equation}
+with
+\begin{equation}
+\delta^\ell_j
+=
+\sigma^2 \left(1+\left\|\mathbf{x}^{\ell-1\prime}\right\|^2\right).
 \end{equation}
 
-This shows that independent Gaussian perturbations at the weight and bias level do not produce arbitrary pre-activation noise. Instead, their combined effect at each neuron is itself Gaussian, with a variance determined by the norm of the incoming activation vector together with the bias contribution. Equivalently, the bias can be viewed as an additional input fixed at one. In other words, WP induces structured node-level noise: neurons receiving larger incoming activations are perturbed more strongly, while neurons receiving smaller incoming activations are perturbed less. This induced distribution is the key object we will use to compare WP with node perturbation directly.
-
+This mirrors the key observation behind the local reparameterization trick in Section~2.8: independent Gaussian noise at the weight level induces Gaussian noise at the pre-activation level. The variance expression is not identical, since \textcite{kingma2015variational} consider learned weight-specific variances, while WP uses a fixed perturbation scale \(\sigma\), with an additional contribution from the bias perturbation. For the argument here, however, the important point is simply that the induced pre-activation noise has a well-defined Gaussian distribution. This means that the same pre-activation noise can be sampled directly at the node level, which is the starting point for the method derived next.
 \subsection{Input-scaled node perturbation}
 
-The result above suggests a natural modification of standard node perturbation. Recall from Section~2.5 that standard NP injects Gaussian noise with the same perturbation scale at every node. That is, although the perturbation scale is a hyperparameter, it is fixed across neurons and does not depend on the magnitude of the incoming activation vector. This means that standard NP does not reproduce the pre-activation noise induced by WP: as shown in Section~3.2, Gaussian weight and bias perturbations induce node-level noise whose variance scales with $1+\|\mathbf{x}^{\ell-1\prime}\|^2$.
+The result above suggests a natural modification of standard node perturbation. Recall from Section~2.5 that standard NP injects Gaussian noise with the same perturbation scale at every node. From this point onward, we refer to this standard version as vanilla NP. Although the perturbation scale is a hyperparameter, it is fixed across neurons and does not depend on the magnitude of the incoming activation vector. This means that vanilla NP does not reproduce the pre-activation noise induced by WP: as shown in Section~3.1, Gaussian weight and bias perturbations induce node-level noise whose variance scales with \(1+\|\mathbf{x}^{\ell-1'}\|^2\). It is therefore not possible to apply the local reparameterization trick directly to vanilla NP and obtain a clean variance comparison with WP.
 
 One way to approximate this input-dependent scaling is fan-in-scaled NP. If the incoming activations are independent standard Gaussians, $x_i^{\ell-1} \sim \mathcal{N}(0,1)$, then
 \begin{equation}
@@ -124,10 +137,12 @@ One way to approximate this input-dependent scaling is fan-in-scaled NP. If the 
 \mathbb{E}\!\left[1+\sum_{i=1}^{N_{\ell-1}} (x_i^{\ell-1})^2\right]
 =
 N_{\ell-1}+1.
+\label{eq:fanin_expected_input_norm}
 \end{equation}
-Under this assumption, the induced WP noise has expected variance $\sigma^2 (N_{\ell-1}+1)$ at each node when the bias is included. This is the same type of scaling argument used by \textcite{werfel2005learning}, who choose the NP noise variance to be a factor $N$ larger than the WP noise variance in order to make the two stochastic variants directly comparable. Fan-in-scaled NP therefore matches the WP-induced node noise under this distributional assumption, but only at the level of the expected squared input norm, with the bias treated as an additional constant input in this thesis.
+Under this assumption, the induced WP noise has expected variance $\sigma^2 (N_{\ell-1}+1)$ at each node when the bias is included. This is the same type of scaling argument used by \textcite{werfel2005learning}, who choose the NP noise variance to be a factor $N$ larger than the WP noise variance in order to make the two stochastic variants directly comparable. However, fan-in-scaled NP only matches the WP-induced node noise under this distributional assumption. In general, there is no guarantee that the incoming activations in every layer, for every input, and throughout training have squared norm \(N_{\ell-1}\). Unless such a normalization is imposed explicitly, fan-in scaling only matches the typical scale of the WP-induced noise, not the actual pre-activation noise in a given forward pass. It therefore also cannot be used as the direct local reparameterized version of WP.
 
-We now remove this expectation-level approximation by matching the WP-induced pre-activation noise directly. This leads to the method proposed in this thesis, which we call input-scaled node perturbation (IS-NP). To the best of our knowledge, this specific perturbation rule has not been derived previously; in particular, it does not appear among the perturbation-learning methods reviewed in Table~\ref{tab:perturbation_update_rules}. For each neuron $j$ in layer $\ell$, we sample
+We now remove this expectation-level approximation by matching the WP-induced pre-activation noise directly. This gives a node-level perturbation rule that samples from the same pre-activation noise distribution as WP, and can therefore be viewed as the local reparameterized version of WP in the perturbation-learning setting. We call this method input-scaled node perturbation (IS-NP).
+For each neuron $j$ in layer $\ell$, we sample
 \begin{equation}
 \Delta z^\ell_j
 =
@@ -203,199 +218,19 @@ and
 \label{eq:isnp_bias_update}
 \end{equation}
 
-Thus, unlike standard NP, the perturbation scale is not fixed across neurons. Unlike fan-in-scaled NP, it is also not determined only by the number of incoming units. Instead, IS-NP scales the perturbation by the actual norm of the incoming activation vector for each layer and input example. This does not by itself imply that IS-NP is preferable to other NP variants in practice, but it makes IS-NP directly comparable to WP because it samples the same pre-activation noise distribution induced by Gaussian weight perturbations.
+Thus, unlike vanilla NP, the perturbation scale is not fixed across parameters. Unlike fan-in-scaled NP, it is also not determined only by the number of incoming units. Instead, IS-NP scales the perturbation by the actual norm of the incoming activation vector for each layer and input example. This does not by itself imply that IS-NP is preferable to other NP variants in practice, but it makes IS-NP directly comparable to WP because it samples the same pre-activation noise distribution induced by Gaussian weight perturbations.
 
 In terms of biological plausibility, IS-NP remains close to the three-factor learning picture. Compared to standard NP, it also uses the norm of the full incoming activation vector together with the bias contribution, \(\sqrt{1+\|\mathbf{x}^{\ell-1\prime}\|^2}\), rather than only the activity of the single presynaptic neuron connected to a given synapse. This goes beyond the simplest form of Eq.~\eqref{eq:three_factor_learning}, but the added information is still based on presynaptic activity arriving at the postsynaptic neuron, together with the node perturbation and the global scalar feedback signal. IS-NP therefore remains well aligned with the general ingredients of three-factor learning, while assuming an additional neuron-level scaling term compared to standard NP.
-\subsection{Expected equivalence between WP and IS-NP}
-Recall from Section~2.4 that WP does not optimize the deterministic loss directly, but the perturbation-smoothed objective
-\begin{equation}
-F(\theta)
-:=
-\mathbb{E}_{\theta' \sim p_\theta}
-\left[
-L(\theta')
-\right],
-\end{equation}
-where $\theta$ denotes the trainable network parameters, including both weights and biases. For WP, the perturbed parameters can be written as $\theta'=\theta+\Delta\theta$, so the objective is
-\begin{equation}
-F_{\mathrm{WP}}(\theta)
-=
-\mathbb{E}_{\Delta\theta}
-\left[
-L\!\left(\mathrm{forward}(\theta+\Delta\theta)\right)
-\right].
-\end{equation}
-Although this expectation is defined over parameter perturbations, the loss does not depend on $\Delta\theta$ directly. It depends on $\Delta\theta$ only through the perturbed forward pass that these parameter perturbations produce.
 
-Let
-\begin{equation}
-\boldsymbol{\Delta Z}
-=
-(\boldsymbol{\Delta z}^1,\dots,\boldsymbol{\Delta z}^L)
-\end{equation}
-denote the full induced pre-activation noise field. Since $\boldsymbol{\Delta Z}$ determines the perturbed forward pass, WP can equivalently be viewed as inducing a distribution over $\boldsymbol{\Delta Z}$. If this induced distribution is denoted by $p_{\mathrm{WP}}(\boldsymbol{\Delta Z})$, then the WP objective can be written as
-\begin{equation}
-F_{\mathrm{WP}}(\theta)
-=
-\mathbb{E}_{\boldsymbol{\Delta Z}\sim p_{\mathrm{WP}}}
-\left[
-L\!\left(\mathrm{forward}(\theta;\boldsymbol{\Delta Z})\right)
-\right].
-\end{equation}
-Equivalently,
-\begin{equation}
-F_{\mathrm{WP}}(\theta)
-=
-\int
-L\!\left(\mathrm{forward}(\theta;\boldsymbol{\Delta Z})\right)
-p_{\mathrm{WP}}(\boldsymbol{\Delta Z})
-\,d\boldsymbol{\Delta Z}.
-\end{equation}
-This expression makes clear that the objective is an average over possible perturbed forward passes: each possible pre-activation noise field contributes its loss value, weighted by the probability that WP induces that noise field.
+IS-NP and fan-in-scaled NP are also unbiased estimators of the gradient of the loss averaged over their own perturbation distributions. The unbiasedness argument is not derived separately here, since it follows the same score-function proof as for standard NP; only the perturbation distribution is changed. When \(\sigma\) is very small, these smoothed losses approach the original loss, so the estimators (WP, IS NP, Fan-in NP and Vanilla NP) all target nearly the same objective. For finite \(\sigma\), however, the objectives need not be exactly identical. Appendix~\ref{app:expected_equivalence_wp_isnp} shows that WP and IS-NP are a special case: because IS-NP samples the same pre-activation noise distribution induced by WP, the two methods estimate the gradient of exactly the same smoothed objective. This is not generally true for vanilla NP or fan-in-scaled NP. This exact equality in the smoothed objective makes the subsequent variance comparison between WP and IS NP clean.
 
-From Section~3.2, WP induces the conditional distribution
-\begin{equation}
-\Delta z^\ell_j
-\mid
-\mathbf{x}^{\ell-1\prime}
-\sim
-\mathcal{N}
-\left(
-0,
-\sigma^2
-\left(1+
-\left\|
-\mathbf{x}^{\ell-1\prime}
-\right\|^2\right)
-\right).
-\end{equation}
-IS-NP is defined to sample directly from this same conditional distribution. Therefore, for each layer,
-\begin{equation}
-p_{\mathrm{IS\text{-}NP}}
-\left(
-\boldsymbol{\Delta z}^{\ell}
-\mid
-\mathbf{x}^{\ell-1\prime}
-\right)
-=
-p_{\mathrm{WP}}
-\left(
-\boldsymbol{\Delta z}^{\ell}
-\mid
-\mathbf{x}^{\ell-1\prime}
-\right).
-\end{equation}
-The forward recursion is deterministic once $\boldsymbol{\Delta z}^{\ell}$ is sampled:
-\begin{equation}
-\mathbf{z}^{\ell\prime}
-=
-\mathbf{W}^\ell \mathbf{x}^{\ell-1\prime}
-+
-\mathbf{b}^\ell
-+
-\boldsymbol{\Delta z}^{\ell},
-\qquad
-\mathbf{x}^{\ell\prime}
-=
-\phi(\mathbf{z}^{\ell\prime}).
-\end{equation}
-Hence the equality of the layer-wise conditional distributions propagates through the network, giving the same distribution over the full pre-activation noise field:
-\begin{equation}
-p_{\mathrm{IS\text{-}NP}}(\boldsymbol{\Delta Z})
-=
-p_{\mathrm{WP}}(\boldsymbol{\Delta Z}).
-\end{equation}
-
-The IS-NP objective can therefore be written as
-\begin{align}
-F_{\mathrm{IS\text{-}NP}}(\theta)
-&=
-\int
-L\!\left(\mathrm{forward}(\theta;\boldsymbol{\Delta Z})\right)
-p_{\mathrm{IS\text{-}NP}}(\boldsymbol{\Delta Z})
-\,d\boldsymbol{\Delta Z} \\
-&=
-\int
-L\!\left(\mathrm{forward}(\theta;\boldsymbol{\Delta Z})\right)
-p_{\mathrm{WP}}(\boldsymbol{\Delta Z})
-\,d\boldsymbol{\Delta Z} \\
-&=
-F_{\mathrm{WP}}(\theta).
-\end{align}
-Thus, WP and IS-NP define the same perturbation-smoothed objective. For every possible $\boldsymbol{\Delta Z}$, the two methods assign the same probability to the corresponding perturbed forward pass, and the loss value produced by that forward pass is the same.
-
-Since both WP and IS-NP are unbiased score-function estimators of the gradient of this same objective, their expected gradient estimates are equal:
-\begin{equation}
-\mathbb{E}
-\left[
-\widehat{g}^{\mathrm{WP}}
-\right]
-=
-\nabla F(\theta)
-=
-\mathbb{E}
-\left[
-\widehat{g}^{\mathrm{IS\text{-}NP}}
-\right].
-\end{equation}
-In other words, WP and IS-NP have the same expected update direction. The difference between them is therefore not the objective they estimate, but the variance of their gradient estimators.
-
-The same argument does not generally apply to standard NP or fan-in-scaled NP. Standard NP samples fixed-variance pre-activation noise,
-\begin{equation}
-\Delta z^\ell_j
-\sim
-\mathcal{N}(0,\sigma^2),
-\end{equation}
-whereas WP induces
-\begin{equation}
-\Delta z^\ell_j
-\mid
-\mathbf{x}^{\ell-1\prime}
-\sim
-\mathcal{N}
-\left(
-0,
-\sigma^2
-\left(1+
-\left\|
-\mathbf{x}^{\ell-1\prime}
-\right\|^2\right)
-\right).
-\end{equation}
-These distributions are equal only in the special case where
-\begin{equation}
-\left\|
-\mathbf{x}^{\ell-1\prime}
-\right\|^2
-=
-0.
-\end{equation}
-
-Similarly, fan-in-scaled NP samples noise with variance proportional to the number of incoming units,
-\begin{equation}
-\Delta z^\ell_j
-\sim
-\mathcal{N}
-\left(
-0,
-\sigma^2 (N_{\ell-1}+1)
-\right).
-\end{equation}
-This matches the WP-induced distribution only when
-\begin{equation}
-\left\|
-\mathbf{x}^{\ell-1\prime}
-\right\|^2
-=
-N_{\ell-1}.
-\end{equation}
-Thus, standard NP and fan-in-scaled NP generally induce different distributions over pre-activation perturbations than WP and IS-NP. They may match WP under special normalization assumptions, but not in the general case where the incoming activation norm varies across layers, samples, and training time.
-
-This distinction is important for the variance analysis that follows. Since WP and IS-NP estimate the gradient of the same perturbation-smoothed objective, comparing their variance is a clean estimator-level comparison: both estimators have the same expectation, and the only question is how much they vary around it. The same is not generally true for standard NP or fan-in-scaled NP, since these methods may target slightly different smoothed objectives. IS-NP therefore provides something that the existing NP variants do not: a node-level perturbation rule that can be compared directly with WP at the level of estimator variance.
-
+Just as the locally reparameterized estimator in Eq.~\eqref{eq:lrt_local_estimator} samples the activation-level noise induced by direct weight sampling in Eq.~\eqref{eq:lrt_direct_weight_estimator}, IS-NP samples the pre-activation noise induced by WP directly at the node level. We now use this correspondence to ask whether the same variance-reduction logic applies: does replacing WP with its local reparameterized version, IS-NP, reduce estimator variance?
 \subsection{Variance reduction theorem}
 
-The previous section showed that IS-NP and WP are matched in expectation. We now show that they differ in variance. More specifically, IS-NP can be viewed as the conditional expectation of WP given the induced pre-activation noise field. This means that IS-NP removes weight-noise variability that affects the WP update but does not affect the actual perturbed forward pass. The result is a direct variance reduction by the law of total variance.
+We now show that IS-NP can be viewed as the conditional expectation of
+WP given the induced pre-activation noise field. This means that IS-NP removes weight-noise
+variability that affects the WP update but does not affect the actual perturbed forward pass. The
+result is a direct variance reduction by the law of total variance.
 
 For a single weight coordinate \(W^\ell_{ij}\), the WP estimator can be written as
 \begin{equation}
@@ -414,7 +249,7 @@ The corresponding bias-coordinate estimator is
 \label{eq:wp_bias_estimator_component}
 \end{equation}
 
-\begin{proposition}
+\begin{theorem}
 For Gaussian weight and bias perturbations and the corresponding input-scaled node perturbation estimator defined in Eqs.~\eqref{eq:isnp_estimator} and~\eqref{eq:isnp_bias_estimator}, the coordinate-wise variance of IS-NP is no larger than that of WP. For each weight coordinate,
 \[
 \mathrm{Var}\!\left(\widehat{g}^{\mathrm{IS\text{-}NP}}_{ij,\ell}\right)
@@ -422,12 +257,12 @@ For Gaussian weight and bias perturbations and the corresponding input-scaled no
 \mathrm{Var}\!\left(\widehat{g}^{\mathrm{WP}}_{ij,\ell}\right).
 \]
 The same inequality holds for each bias coordinate \(b_j^\ell\).
-\end{proposition}
+\end{theorem}
 
 \begin{proof}
 We consider the weight perturbation estimator in \eqref{eq:wp_estimator_component}, and analyze its variance by conditioning on the induced pre-activation noise. Recall from \eqref{eq:preact_noise} that $\Delta z^\ell_j$ is a linear combination of the weight perturbations.
 
-Condition on the full induced noise field \(\boldsymbol{\Delta Z}=(\boldsymbol{\Delta z}^1,\dots,\boldsymbol{\Delta z}^L)\). Since the perturbed forward pass satisfies
+We condition on the full induced noise field \(\boldsymbol{\Delta Z}=(\boldsymbol{\Delta z}^1,\dots,\boldsymbol{\Delta z}^L)\). Since the perturbed forward pass satisfies
 \[
 \mathbf{z}^{\ell\prime}
 =
@@ -573,30 +408,24 @@ which gives
 Substituting this into the WP bias estimator in Eq.~\eqref{eq:wp_bias_estimator_component} gives the IS-NP bias estimator in Eq.~\eqref{eq:isnp_bias_estimator}, so the same law-of-total-variance argument applies.
 \end{proof}
 
-The intuition behind this result is simple. Once the induced pre-activation noise field $\boldsymbol{\Delta Z}$ is fixed, the perturbed forward pass is fixed. This means that the activations, the loss difference $\Delta \ell$, and the IS-NP update are all determined. In WP, however, the update still depends on the individual weight perturbations that produced the same $\boldsymbol{\Delta Z}$. These remaining weight-level perturbations no longer affect the forward pass or the loss signal; they only change the WP update itself. They therefore add variability that does not help learning. From the perspective of estimating the same learning signal, this variability is simply extra noise.
+The theorem confirms that the same variance-reduction principle does carry over to perturbation-based learning: IS-NP is the local reparameterized version of WP, and its coordinate-wise variance is smaller than or equal to that of WP. The intuition is the same as in the variational Bayesian neural network setting discussed in Section~2.8. Once the induced pre-activation noise is fixed, the perturbed forward pass and the scalar learning signal are fixed; any remaining weight-level randomness only changes the WP update, not the network output. IS-NP removes this unnecessary source of variability by sampling the induced pre-activation noise directly.
 
-The variance theorem completes the comparison introduced at the start of the chapter. It shows that the difference between weight-level and node-level perturbation is not only a matter of perturbation dimensionality: when the node perturbation is chosen to match the noise induced by WP, the resulting estimator has the same expectation as WP but lower or equal coordinate-wise variance. This means that the weight-level estimator contains variability that is irrelevant once the induced pre-activation noise is fixed. In this precise sense, WP can be viewed as a higher-variance way of sampling a learning signal that can also be sampled at the node level. The result therefore clarifies the relationship between weight-level and node-level perturbations in nonlinear multilayer networks, while also identifying IS-NP as the node-level rule for which this comparison is exact.
 \subsection{Why IS-NP may improve over existing NP variants}
-The variance theorem above compares IS-NP directly with WP, but it does not establish how IS-NP compares to other node perturbation variants. As shown in section 3.4, NP and fan-in-scaled NP use different perturbation distributions, and therefore generally correspond to perturbation-smoothed objectives that are similar, but not identical, to those of WP and IS-NP. For this reason, we do not derive an analytical variance comparison between IS-NP and these methods. Instead, we use the scaling arguments developed above to reason about which perturbation rule is likely to be better behaved in practice, before testing this empirically in Chapter~5.
+The variance theorem above compares IS-NP directly with WP, but it does not establish how IS-NP compares to other node perturbation variants. As shown in Appendix~\ref{app:expected_equivalence_wp_isnp}, NP and fan-in-scaled NP use different perturbation distributions, and therefore generally correspond to perturbation-smoothed objectives that are similar, but not identical, to those of WP and IS-NP. For this reason, we do not derive an analytical variance comparison between IS-NP and these methods. Instead, we use the scaling arguments developed above to reason about which perturbation rule is likely to be better behaved in practice, before testing this empirically in Chapter~5.
 
 Standard NP uses the same perturbation scale at every node, regardless of the incoming activation norm. This can lead to poorly scaled updates. If $\|\mathbf{x}^{\ell-1}\|$ is large, a fixed pre-activation perturbation may have only a small relative effect on the network output, while the resulting weight update can still become large because it is multiplied by the incoming activation. Conversely, if $\|\mathbf{x}^{\ell-1}\|$ is small, the same fixed perturbation may create a large relative change in the pre-activation, while the corresponding weight update is small. In both cases, the perturbation scale is disconnected from the activation scale that determines the weight update. This mismatch is expected to be most problematic in networks where activation norms vary substantially across layers, samples, or training time, for example when layer widths differ or activations are not explicitly normalized. In such cases, a fixed perturbation scale will sometimes be too large and sometimes too small, making standard NP less consistently scaled than methods that account for the incoming activation norm.
 
-Fan-in-scaled NP partially addresses this issue by accounting for the number of incoming units. If the incoming activations are independent, zero-mean, and unit-variance, and the bias is treated as an additional constant input, then
-\begin{equation}
-\mathbb{E}\!\left[1+\left\|\mathbf{x}^{\ell-1}\right\|^2\right]
-=
-\mathbb{E}\!\left[1+\sum_{i=1}^{N_{\ell-1}} (x_i^{\ell-1})^2\right]
-=
-1+
-\sum_{i=1}^{N_{\ell-1}} \mathbb{E}\!\left[(x_i^{\ell-1})^2\right]
-=
-N_{\ell-1}+1.
-\end{equation}
-Thus, under these assumptions, the expected squared norm of the incoming activation vector, including the bias contribution, grows with the fan-in. This is the same scaling argument used by \textcite{werfel2005learning}, who choose the NP perturbation variance to be a factor $N$ larger than the WP perturbation variance so that the two stochastic variants are directly comparable in their linear setting. If the incoming activations were explicitly normalized so that their squared norm matched the layer width, this correction would be exact up to the details of the normalization. However, this would introduce an additional architectural mechanism that is not part of the perturbation-learning methods reviewed here. Some reviewed work uses related stabilization or preprocessing techniques, such as the weight-normalized NP variant of \textcite{hiratani2022stability} and the input-decorrelated NP variants of \textcite{dalm2024effective}, but these do not correspond to layer-wise activation normalization that fixes \(1+\|\mathbf{x}^{\ell-1}\|^2\) in each forward pass. Moreover, common artificial normalization methods such as layer normalization typically include learnable scale and shift parameters, so they do not generally imply a fixed activation norm unless constrained to do so. Relying on such normalization would therefore make fan-in scaling depend on an extra assumption, and one whose biological interpretation is not established in the perturbation-learning literature considered here. In the setting studied in this thesis, activation norms are therefore allowed to vary across layers, samples, and training time. Fan-in scaling can therefore improve on standard NP by correcting for the typical size of a layer, but it still does not account for the actual incoming activation norm in a given forward pass.
+Fan-in-scaled NP partially addresses this issue by accounting for the number of incoming units. Under the independent, zero-mean, unit-variance activation assumption with the bias treated as an additional constant input, Eq.~\eqref{eq:fanin_expected_input_norm} shows that the expected squared norm of the incoming activation vector, including the bias contribution, grows with the fan-in. This is the same scaling argument used by \textcite{werfel2005learning}, who choose the NP perturbation variance to be a factor $N$ larger than the WP perturbation variance so that the two stochastic variants are directly comparable in their linear setting. If the incoming activations were explicitly normalized so that their squared norm matched the layer width, this correction would be exact up to the details of the normalization. However, this would introduce an additional architectural mechanism that is not part of the perturbation-learning methods reviewed here. Some reviewed work uses related stabilization or preprocessing techniques, such as the weight-normalized NP variant of \textcite{hiratani2022stability} and the input-decorrelated NP variants of \textcite{dalm2024effective}, but these do not correspond to layer-wise activation normalization that fixes \(1+\|\mathbf{x}^{\ell-1}\|^2\) in each forward pass. Moreover, common artificial normalization methods such as layer normalization typically include learnable scale and shift parameters, so they do not generally imply a fixed activation norm unless constrained to do so. Relying on such normalization would therefore make fan-in scaling depend on an extra assumption, and one whose biological interpretation is not established in the perturbation-learning literature considered here. In the setting studied in this thesis, activation norms are therefore allowed to vary across layers, samples, and training time. Fan-in scaling can therefore improve on standard NP by correcting for the typical size of a layer, but it still does not account for the actual incoming activation norm in a given forward pass.
 
 IS-NP avoids this average correction by using the actual incoming activation norm, together with the bias contribution, in the current forward pass. Its perturbation scale is therefore adapted to the layer, input example, and current network state. This does not prove that IS-NP must outperform standard NP or fan-in-scaled NP in every practical setting, since other factors may also influence learning performance. However, it gives a clear scaling-based reason to expect more consistent behaviour when activation norms vary across layers, samples, or training time. Whether this advantage translates into better empirical performance is therefore a question to be tested experimentally.
 \subsection{Summary of theoretical contribution}
 
-This chapter addressed the second research objective of the thesis: to further develop the theory of perturbation-based learning. Building on the gap identified in Chapter~2, we analysed the relationship between WP and NP at the estimator level in nonlinear multilayer networks. This led to the derivation of input-scaled node perturbation (IS-NP), a node perturbation rule that samples the pre-activation noise induced by Gaussian WP directly. We then showed that WP and IS-NP estimate the same perturbation-smoothed objective in expectation, and proved that IS-NP has variance smaller than or equal to WP for each coordinate. Finally, we compared IS-NP conceptually with standard NP and fan-in-scaled NP. This gave scaling-based reasons to expect IS-NP to behave more consistently, although this comparison was not a formal variance proof.
+This chapter addressed the second research objective of the thesis: to further develop the theory of perturbation-based learning. Two main contributions came out of this chapter. 
+
+The first is a more precise comparison between weight-level and node-level perturbation learning in nonlinear multilayer networks. By deriving IS-NP as the local reparameterized version of WP, showing that WP and IS-NP estimate the same perturbation-smoothed objective, and proving that IS-NP has lower or equal coordinate-wise variance than WP, we have clarified the estimator-level relationship between the two perturbation families. This addresses the gap identified in Chapter~2, where the existing literature was shown to lack a general comparison of WP and NP in nonlinear multilayer networks.
+
+The second contribution is the derivation of input-scaled node perturbation itself. IS-NP modifies standard NP by scaling the node perturbation according to the norm of the incoming activation vector, including the bias contribution. This makes IS-NP match the pre-activation noise distribution induced by Gaussian WP, rather than using a fixed perturbation scale as in vanilla NP or an average fan-in correction as in fan-in-scaled NP. We also compared IS-NP conceptually with these existing NP variants and gave scaling-based reasons to expect IS-NP to behave more consistently when activation norms vary across layers, samples, or training time. This comparison is not a formal variance proof against vanilla NP or fan-in-scaled NP, but it motivates IS-NP as a theoretically grounded variant of node perturbation.
+
+To the best of our knowledge, neither the exact estimator-level variance comparison between WP and a matching node-level perturbation rule, nor the specific IS-NP update rule derived here, has previously been presented in the perturbation-learning literature.
 
 Chapters~2 and~3 therefore establish the theoretical foundation for the thesis. Chapter~2 addressed the first research objective by reviewing and clarifying the existing theory of perturbation-based learning, while Chapter~3 addressed the second objective. What remains is to address the third research objective: to evaluate how WP, standard NP, fan-in-scaled NP, and IS-NP perform in practice. The next chapter therefore turns from theory to experiments, where these four learning rules are compared empirically across the selected benchmark tasks.

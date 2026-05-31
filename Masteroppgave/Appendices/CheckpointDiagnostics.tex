@@ -248,3 +248,239 @@ This appendix shows the checkpoint-specific cosine similarity and estimator vari
     \label{fig:app_cifar10_variance_checkpoints}
 \end{figure}
 \FloatBarrier
+\subsection{Full Result Summary Tables}
+\label{app:full_result_tables}
+
+This appendix contains the full numerical summary tables for the four learning problems. These tables include the metrics omitted from the compact tables in Chapter~\ref{ch:results}, namely the training metrics and convergence epoch.
+
+\begin{sidewaystable}[!p]
+    \centering
+    \scriptsize
+    \caption{Full summary metrics for the sinus regression task. Values are mean \(\pm\) standard deviation across seeds.}
+    \label{tab:app_sinus_full_summary}
+    {\renewcommand{\arraystretch}{1.28}%
+    \resizebox{\textheight}{!}{\input{ResultAssets/tables/sinus/summary_full.tex}}%
+    }
+\end{sidewaystable}
+\FloatBarrier
+
+\begin{sidewaystable}[!p]
+    \centering
+    \scriptsize
+    \caption{Full summary metrics for the California housing regression task. Values are mean \(\pm\) standard deviation across seeds.}
+    \label{tab:app_california_housing_full_summary}
+    {\renewcommand{\arraystretch}{1.28}%
+    \resizebox{\textheight}{!}{\input{ResultAssets/tables/california_housing/summary_full.tex}}%
+    }
+\end{sidewaystable}
+\FloatBarrier
+
+\begin{sidewaystable}[!p]
+    \centering
+    \scriptsize
+    \caption{Full summary metrics for the MNIST classification task. Values are mean \(\pm\) standard deviation across seeds.}
+    \label{tab:app_mnist_full_summary}
+    {\renewcommand{\arraystretch}{1.28}%
+    \resizebox{\textheight}{!}{\input{ResultAssets/tables/mnist/summary_full.tex}}%
+    }
+\end{sidewaystable}
+\FloatBarrier
+
+\begin{sidewaystable}[!p]
+    \centering
+    \scriptsize
+    \caption{Full summary metrics for the CIFAR-10 classification task. Values are mean \(\pm\) standard deviation across seeds.}
+    \label{tab:app_cifar10_full_summary}
+    {\renewcommand{\arraystretch}{1.28}%
+    \resizebox{\textheight}{!}{\input{ResultAssets/tables/cifar10/summary_full.tex}}%
+    }
+\end{sidewaystable}
+\FloatBarrier
+
+\subsection{Expected Equivalence Between WP and IS-NP}
+\label{app:expected_equivalence_wp_isnp}
+Recall from Section~2.4 that WP does not optimize the deterministic loss directly, but the perturbation-smoothed objective
+\begin{equation}
+F(\theta)
+:=
+\mathbb{E}_{\theta' \sim p_\theta}
+\left[
+L(\theta')
+\right],
+\end{equation}
+where $\theta$ denotes the trainable network parameters, including both weights and biases. For WP, the perturbed parameters can be written as $\theta'=\theta+\Delta\theta$, so the objective is
+\begin{equation}
+F_{\mathrm{WP}}(\theta)
+=
+\mathbb{E}_{\Delta\theta}
+\left[
+L\!\left(\mathrm{forward}(\theta+\Delta\theta)\right)
+\right].
+\end{equation}
+Although this expectation is defined over parameter perturbations, the loss does not depend on $\Delta\theta$ directly. It depends on $\Delta\theta$ only through the perturbed forward pass that these parameter perturbations produce.
+
+Let
+\begin{equation}
+\boldsymbol{\Delta Z}
+=
+(\boldsymbol{\Delta z}^1,\dots,\boldsymbol{\Delta z}^L)
+\end{equation}
+denote the full induced pre-activation noise field. Since $\boldsymbol{\Delta Z}$ determines the perturbed forward pass, WP can equivalently be viewed as inducing a distribution over $\boldsymbol{\Delta Z}$. If this induced distribution is denoted by $p_{\mathrm{WP}}(\boldsymbol{\Delta Z})$, then the WP objective can be written as
+\begin{equation}
+F_{\mathrm{WP}}(\theta)
+=
+\mathbb{E}_{\boldsymbol{\Delta Z}\sim p_{\mathrm{WP}}}
+\left[
+L\!\left(\mathrm{forward}(\theta;\boldsymbol{\Delta Z})\right)
+\right].
+\end{equation}
+Equivalently,
+\begin{equation}
+F_{\mathrm{WP}}(\theta)
+=
+\int
+L\!\left(\mathrm{forward}(\theta;\boldsymbol{\Delta Z})\right)
+p_{\mathrm{WP}}(\boldsymbol{\Delta Z})
+\,d\boldsymbol{\Delta Z}.
+\end{equation}
+This expression makes clear that the objective is an average over possible perturbed forward passes: each possible pre-activation noise field contributes its loss value, weighted by the probability that WP induces that noise field.
+
+From Section~3.2, WP induces the conditional distribution
+\begin{equation}
+\Delta z^\ell_j
+\mid
+\mathbf{x}^{\ell-1\prime}
+\sim
+\mathcal{N}
+\left(
+0,
+\sigma^2
+\left(1+
+\left\|
+\mathbf{x}^{\ell-1\prime}
+\right\|^2\right)
+\right).
+\end{equation}
+IS-NP is defined to sample directly from this same conditional distribution. Therefore, for each layer,
+\begin{equation}
+p_{\mathrm{IS\text{-}NP}}
+\left(
+\boldsymbol{\Delta z}^{\ell}
+\mid
+\mathbf{x}^{\ell-1\prime}
+\right)
+=
+p_{\mathrm{WP}}
+\left(
+\boldsymbol{\Delta z}^{\ell}
+\mid
+\mathbf{x}^{\ell-1\prime}
+\right).
+\end{equation}
+The forward recursion is deterministic once $\boldsymbol{\Delta z}^{\ell}$ is sampled:
+\begin{equation}
+\mathbf{z}^{\ell\prime}
+=
+\mathbf{W}^\ell \mathbf{x}^{\ell-1\prime}
++
+\mathbf{b}^\ell
++
+\boldsymbol{\Delta z}^{\ell},
+\qquad
+\mathbf{x}^{\ell\prime}
+=
+\phi(\mathbf{z}^{\ell\prime}).
+\end{equation}
+Hence the equality of the layer-wise conditional distributions propagates through the network, giving the same distribution over the full pre-activation noise field:
+\begin{equation}
+p_{\mathrm{IS\text{-}NP}}(\boldsymbol{\Delta Z})
+=
+p_{\mathrm{WP}}(\boldsymbol{\Delta Z}).
+\end{equation}
+
+The IS-NP objective can therefore be written as
+\begin{align}
+F_{\mathrm{IS\text{-}NP}}(\theta)
+&=
+\int
+L\!\left(\mathrm{forward}(\theta;\boldsymbol{\Delta Z})\right)
+p_{\mathrm{IS\text{-}NP}}(\boldsymbol{\Delta Z})
+\,d\boldsymbol{\Delta Z} \\
+&=
+\int
+L\!\left(\mathrm{forward}(\theta;\boldsymbol{\Delta Z})\right)
+p_{\mathrm{WP}}(\boldsymbol{\Delta Z})
+\,d\boldsymbol{\Delta Z} \\
+&=
+F_{\mathrm{WP}}(\theta).
+\end{align}
+Thus, WP and IS-NP define the same perturbation-smoothed objective. For every possible $\boldsymbol{\Delta Z}$, the two methods assign the same probability to the corresponding perturbed forward pass, and the loss value produced by that forward pass is the same.
+
+Since both WP and IS-NP are unbiased score-function estimators of the gradient of this same objective, their expected gradient estimates are equal:
+\begin{equation}
+\mathbb{E}
+\left[
+\widehat{g}^{\mathrm{WP}}
+\right]
+=
+\nabla F(\theta)
+=
+\mathbb{E}
+\left[
+\widehat{g}^{\mathrm{IS\text{-}NP}}
+\right].
+\end{equation}
+In other words, WP and IS-NP have the same expected update direction. The difference between them is therefore not the objective they estimate, but the variance of their gradient estimators.
+
+The same argument does not generally apply to standard NP or fan-in-scaled NP. Standard NP samples fixed-variance pre-activation noise,
+\begin{equation}
+\Delta z^\ell_j
+\sim
+\mathcal{N}(0,\sigma^2),
+\end{equation}
+whereas WP induces
+\begin{equation}
+\Delta z^\ell_j
+\mid
+\mathbf{x}^{\ell-1\prime}
+\sim
+\mathcal{N}
+\left(
+0,
+\sigma^2
+\left(1+
+\left\|
+\mathbf{x}^{\ell-1\prime}
+\right\|^2\right)
+\right).
+\end{equation}
+These distributions are equal only in the special case where
+\begin{equation}
+\left\|
+\mathbf{x}^{\ell-1\prime}
+\right\|^2
+=
+0.
+\end{equation}
+
+Similarly, fan-in-scaled NP samples noise with variance proportional to the number of incoming units,
+\begin{equation}
+\Delta z^\ell_j
+\sim
+\mathcal{N}
+\left(
+0,
+\sigma^2 (N_{\ell-1}+1)
+\right).
+\end{equation}
+This matches the WP-induced distribution only when
+\begin{equation}
+\left\|
+\mathbf{x}^{\ell-1\prime}
+\right\|^2
+=
+N_{\ell-1}.
+\end{equation}
+Thus, standard NP and fan-in-scaled NP generally induce different distributions over pre-activation perturbations than WP and IS-NP. They may match WP under special normalization assumptions, but not in the general case where the incoming activation norm varies across layers, samples, and training time.
+
+This distinction is important for the variance analysis that follows. Since WP and IS-NP estimate the gradient of the same perturbation-smoothed objective, comparing their variance is a clean estimator-level comparison: both estimators have the same expectation, and the only question is how much they vary around it. The same is not generally true for standard NP or fan-in-scaled NP, since these methods may target slightly different smoothed objectives. IS-NP therefore provides something that the existing NP variants do not: a node-level perturbation rule that can be compared directly with WP at the level of estimator variance.

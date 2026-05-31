@@ -1,0 +1,9 @@
+Metric,BP,IS NP,Vanilla NP,Fan-in NP,WP
+Best train loss,0.0385 $\pm$ 4.14e-4,0.0788 $\pm$ 1.92e-4,0.0812 $\pm$ 1.16e-4,0.0798 $\pm$ 2.76e-5,0.0839 $\pm$ 4.94e-4
+Best test loss,0.0618 $\pm$ 7.69e-5,0.0788 $\pm$ 1.28e-4,0.0812 $\pm$ 1.47e-4,0.0799 $\pm$ 4.49e-5,0.0838 $\pm$ 3.85e-4
+Best train score,0.805 $\pm$ 0.00513,0.356 $\pm$ 0.00455,0.332 $\pm$ 0.00457,0.350 $\pm$ 0.00388,0.294 $\pm$ 0.0109
+Best test score,0.558 $\pm$ 0.00303,0.362 $\pm$ 0.00265,0.337 $\pm$ 0.00315,0.354 $\pm$ 0.00195,0.296 $\pm$ 0.00637
+Score metric,Accuracy,Accuracy,Accuracy,Accuracy,Accuracy
+Convergence epoch,35 $\pm$ 1,47 $\pm$ 3,45 $\pm$ 2,46 $\pm$ 3,29 $\pm$ 6
+Cosine,1.00 $\pm$ 0.00,0.0470 $\pm$ 0.00208,0.0275 $\pm$ 7.16e-4,0.0419 $\pm$ 0.00297,9.92e-4 $\pm$ 4.38e-5
+Variance,0.00 $\pm$ 0.00,1.87e-5 $\pm$ 4.35e-7,4.44e-5 $\pm$ 1.00e-6,1.97e-5 $\pm$ 5.35e-7,0.0504 $\pm$ 6.81e-4

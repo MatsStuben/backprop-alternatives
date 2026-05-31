@@ -778,3 +778,304 @@ Later perturbation-learning papers reflect the same interpretation of the WP--NP
 The literature reviewed above provides a clear intuition for why node perturbation is often expected to be more efficient than weight perturbation: it perturbs a lower-dimensional space. This intuition is supported by analytical results in simplified linear settings and is commonly used in later work to motivate node perturbation over weight perturbation. However, the comparison remains incomplete. The strongest analytical result is derived for linear perceptrons, while more recent work shows that the usual dimensionality argument can fail in temporally extended tasks. Thus, although node perturbation is often treated as the more efficient default, the literature does not provide a general account of the relationship between weight perturbation and node perturbation in nonlinear multilayer networks.
 
 This is the gap addressed in Chapter~\ref{ch:original_theoretical_contribution}. Rather than asking only which method performs better empirically, we analyse how the two estimators are related theoretically in multilayer networks. As shown there, this analysis not only clarifies the relationship between weight-level and node-level perturbations, but also motivates a new variant of node perturbation that is designed to better match the perturbations induced by weight perturbation.
+
+\subsection{The local reparameterization trick}
+\label{sec:local-reparameterization}
+
+The literature gap identified above concerns the relationship between weight-level and node-level perturbations. To approach this gap, we turn to an idea from a seemingly different context: the local reparameterization trick of \textcite{kingma2015variational}. Kingma et al. study stochastic variational inference in Bayesian neural networks, not perturbation-based learning. However, their work addresses a closely related structural question: when noise is sampled at the level of weights, can its effect instead be represented by equivalent noise at the level of pre-activations? In their setting, they show that this change of perspective reduces the variance of the gradient estimator with respect to the posterior variance parameter \(\sigma_{ij}^{2}\). This subsection reviews their setup and derivation, with particular attention to the similarities and differences between their setting and the WP--NP setting considered in this thesis.
+
+In an ordinary neural network, training produces a single value for each weight. A Bayesian neural network instead treats the weights as random variables. Rather than learning one fixed parameter vector, the goal is to learn a distribution over possible parameter values. This is useful because the distribution can represent uncertainty about the weights, rather than only a single best estimate. Exact Bayesian inference is usually intractable in neural networks, so variational inference introduces a simpler approximate posterior distribution over the weights, denoted \(q_{\phi}(w)\), and optimizes its parameters \(\phi\).
+
+For example, Kingma et al. consider a fully factorized Gaussian approximate posterior over the weights,
+\begin{equation}
+q_{\phi}(w_{ij})
+=
+\mathcal{N}(\mu_{ij}, \sigma_{ij}^{2}),
+\end{equation}
+where the variational parameters are the means \(\mu_{ij}\) and variances \(\sigma_{ij}^{2}\). Training then means adjusting these parameters so that the approximate posterior explains the data while remaining close to a prior distribution over weights. This is done by maximizing the variational lower bound
+\begin{equation}
+\mathcal{L}(\phi)
+=
+-D_{\mathrm{KL}}(q_{\phi}(w) \| p(w))
++
+\mathcal{L}_{D}(\phi),
+\end{equation}
+where the expected log-likelihood term is
+\begin{equation}
+\mathcal{L}_{D}(\phi)
+=
+\sum_{(x,y)\in D}
+\mathbb{E}_{q_{\phi}(w)}
+\left[
+\log p(y \mid x,w)
+\right].
+\end{equation}
+The expectation over \(q_{\phi}(w)\) is generally not available in closed form, since it would require integrating over all possible weight values. Kingma et al. therefore use Monte Carlo sampling: weights are sampled from the approximate posterior, the network is evaluated using these sampled weights, and gradients with respect to \(\mu_{ij}\) and \(\sigma_{ij}^{2}\) are computed by backpropagation through the sampled network.
+
+For a Gaussian posterior, this sampling can be written using the reparameterization
+\begin{equation}
+w_{ij}
+=
+\mu_{ij}
++
+\sigma_{ij}\xi_{w,ij},
+\qquad
+\xi_{w,ij}
+\sim
+\mathcal{N}(0,1).
+\label{eq:lrt_weight_reparameterization}
+\end{equation}
+Thus, the stochasticity is introduced at the weight level. In this sense, the setting has a superficial similarity to weight perturbation: random noise is added to weights in order to form a stochastic estimate of a gradient. The difference is that in stochastic variational inference the gradient is still computed by backpropagation through the sampled network, whereas perturbation-based learning uses scalar feedback and does not backpropagate error derivatives.
+
+Kingma et al. observe that the sampled weights influence the loss through intermediate quantities such as the pre-activations. Consider one linear layer, where \(x_{m,i}\) is the activation of input unit \(i\) for datapoint \(m\), and
+\begin{equation}
+z_{m,j}
+=
+\sum_i x_{m,i}w_{ij}.
+\label{eq:lrt_preactivation}
+\end{equation}
+Since \(z_{m,j}\) is a linear combination of Gaussian random variables, it is also Gaussian. Substituting the reparameterized weights gives
+\begin{equation}
+z_{m,j}
+=
+\sum_i x_{m,i}\mu_{ij}
++
+\sum_i x_{m,i}\sigma_{ij}\xi_{w,ij}.
+\end{equation}
+The first term is deterministic given the input, while the second term is the pre-activation noise induced by the sampled weights. We therefore write
+\begin{equation}
+z_{m,j}
+=
+\gamma_{m,j}
++
+\Delta z_{m,j},
+\end{equation}
+where
+\begin{equation}
+\gamma_{m,j}
+=
+\sum_i x_{m,i}\mu_{ij},
+\qquad
+\Delta z_{m,j}
+=
+\sum_i x_{m,i}\sigma_{ij}\xi_{w,ij}.
+\end{equation}
+Because the \(\xi_{w,ij}\) are independent standard Gaussian variables, the induced pre-activation noise is Gaussian:
+\begin{equation}
+\Delta z_{m,j}
+\sim
+\mathcal{N}(0,\delta_{m,j}),
+\label{eq:lrt_direct_induced_noise}
+\end{equation}
+with
+\begin{equation}
+\delta_{m,j}
+=
+\sum_i x_{m,i}^{2}\sigma_{ij}^{2}.
+\end{equation}
+Thus,
+\begin{equation}
+z_{m,j}
+\sim
+\mathcal{N}(\gamma_{m,j},\delta_{m,j}).
+\end{equation}
+The local reparameterization trick is to sample this pre-activation directly:
+\begin{equation}
+z_{m,j}
+=
+\gamma_{m,j}
++
+\sqrt{\delta_{m,j}}\xi_{z,m,j},
+\qquad
+\xi_{z,m,j}
+\sim
+\mathcal{N}(0,1),
+\label{eq:lrt_local_reparameterized_sampling}
+\end{equation}
+instead of sampling each individual weight \(w_{ij}\) and then computing \(z_{m,j}\). Equivalently, the induced pre-activation noise is sampled as
+\begin{equation}
+\Delta z_{m,j}
+=
+\sqrt{\delta_{m,j}}\xi_{z,m,j}.
+\end{equation}
+This replaces global weight noise with local pre-activation noise. 
+Kingma et al. then show that the locally reparameterized estimator has lower variance than the estimator based on direct weight sampling. Their argument is given for the gradient with respect to the posterior variance parameter \(\sigma_{ij}^{2}\). For simplicity, consider a minibatch of size one, and condition on a single pre-activation \(z_{m,j}\).
+
+For both estimators, the chain rule gives
+\begin{equation}
+\frac{\partial \mathcal{L}_{D}^{\mathrm{SGVB}}}{\partial \sigma_{ij}^{2}}
+=
+\frac{\partial \mathcal{L}_{D}^{\mathrm{SGVB}}}{\partial z_{m,j}}
+\frac{\partial z_{m,j}}{\partial \sigma_{ij}^{2}}.
+\label{eq:lrt_chain_rule_sigma}
+\end{equation}
+
+For direct weight sampling, using the weight reparameterization in Eq.~\eqref{eq:lrt_weight_reparameterization} and the pre-activation definition in Eq.~\eqref{eq:lrt_preactivation}, the second factor is obtained as follows. Since
+\begin{equation}
+\frac{\partial w_{ij}}{\partial \sigma_{ij}^{2}}
+=
+\frac{\xi_{w,ij}}{2\sigma_{ij}},
+\end{equation}
+we get
+\begin{equation}
+\frac{\partial z_{m,j}}{\partial \sigma_{ij}^{2}}
+=
+\frac{x_{m,i}\xi_{w,ij}}{2\sigma_{ij}},
+\end{equation}
+and therefore
+\begin{equation}
+\frac{\partial \mathcal{L}_{D}^{\mathrm{SGVB}}}{\partial \sigma_{ij}^{2}}
+=
+\frac{\partial \mathcal{L}_{D}^{\mathrm{SGVB}}}{\partial z_{m,j}}
+\frac{x_{m,i}\xi_{w,ij}}{2\sigma_{ij}}.
+\label{eq:lrt_direct_weight_estimator}
+\end{equation}
+
+For the locally reparameterized estimator, the same chain-rule expression in Eq.~\eqref{eq:lrt_chain_rule_sigma} applies, but the second factor changes. Using the local pre-activation sampling defined above, and since
+\begin{equation}
+\frac{\partial \delta_{m,j}}{\partial \sigma_{ij}^{2}}
+=
+x_{m,i}^{2},
+\end{equation}
+we obtain
+\begin{equation}
+\frac{\partial z_{m,j}}{\partial \sigma_{ij}^{2}}
+=
+\xi_{z,m,j}
+\frac{x_{m,i}^{2}}{2\sqrt{\delta_{m,j}}},
+\end{equation}
+and therefore
+\begin{equation}
+\frac{\partial \mathcal{L}_{D}^{\mathrm{SGVB}}}{\partial \sigma_{ij}^{2}}
+=
+\frac{\partial \mathcal{L}_{D}^{\mathrm{SGVB}}}{\partial z_{m,j}}
+\frac{\xi_{z,m,j}x_{m,i}^{2}}{2\sqrt{\delta_{m,j}}}.
+\label{eq:lrt_local_estimator}
+\end{equation}
+
+The two estimators have the same expectation, but different variance. To compare them, Kingma et al. condition on the sampled pre-activation \(z_{m,j}\) and apply the law of total variance:
+\begin{equation}
+\operatorname{Var}_{q_{\phi},D}
+\left[
+\frac{\partial \mathcal{L}_{D}^{\mathrm{SGVB}}}{\partial \sigma_{ij}^{2}}
+\right]
+=
+\operatorname{Var}_{z_{m,j}}
+\left[
+\mathbb{E}_{q_{\phi},D}
+\left[
+\frac{\partial \mathcal{L}_{D}^{\mathrm{SGVB}}}{\partial \sigma_{ij}^{2}}
+\mid z_{m,j}
+\right]
+\right]
++
+\mathbb{E}_{z_{m,j}}
+\left[
+\operatorname{Var}_{q_{\phi},D}
+\left[
+\frac{\partial \mathcal{L}_{D}^{\mathrm{SGVB}}}{\partial \sigma_{ij}^{2}}
+\mid z_{m,j}
+\right]
+\right].
+\end{equation}
+The first term is identical for the two estimators, because both estimators induce the same distribution over \(z_{m,j}\). The difference lies in the second term, which measures how much randomness remains in the gradient estimator after the pre-activation has been fixed.
+
+For direct weight sampling, the conditional variance can be decomposed into two terms. This follows from applying the variance rule for a product of conditionally independent random quantities. After conditioning on \(z_{m,j}\), the gradient term \(\frac{\partial \mathcal{L}^{\mathrm{SGVB}}_D}{\partial z_{m,j}}\) may still be random because of the data sample and the remaining perturbations in the network. The individual weight-noise variable \(\xi_{w,ij}\) may also still be random because \(z_{m,j}\) does not uniquely determine \(\xi_{w,ij}\). Therefore,
+\[
+\mathbb{E}_{z_{m,j}}
+\left[
+\operatorname{Var}_{q_\phi,D}
+\left[
+\frac{\partial \mathcal{L}^{\mathrm{SGVB}}_D}
+{\partial \sigma_{ij}^2}
+\mid z_{m,j}
+\right]
+\right]
+=
+\mathbb{E}_{z_{m,j}}
+\left[
+\operatorname{Var}_{q_\phi,D}
+\left[
+\frac{\partial \mathcal{L}^{\mathrm{SGVB}}_D}
+{\partial z_{m,j}}
+\mid z_{m,j}
+\right]
+q
+\right]
+\]
+\[
++
+\mathbb{E}_{z_{m,j}}
+\left[
+\mathbb{E}_{q_\phi,D}
+\left[
+\left(
+\frac{\partial \mathcal{L}^{\mathrm{SGVB}}_D}
+{\partial z_{m,j}}
+\right)^2
+\mid z_{m,j}
+\right]
+\operatorname{Var}_{q_\phi,D}
+\left[
+\xi_{w,ij}
+\mid z_{m,j}
+\right]
+\frac{x_{m,i}^2}{4\sigma_{ij}^2}
+\right],
+\]
+where
+\[
+q
+=
+\frac{(z_{m,j}-\gamma_{m,j})^2 x_{m,i}^4}
+{4\delta_{m,j}}.
+\]
+The first term is the variance remaining in the loss derivative after conditioning on \(z_{m,j}\). The second term is the additional variance caused by the fact that \(\xi_{w,ij}\) can still vary even when \(z_{m,j}\) is fixed.
+
+For the locally reparameterized estimator, we can decompose the corresponding conditional variance in the same way. The first term is identical, since the distribution of \(z_{m,j}\) and the conditional randomness in the loss derivative are the same. The difference is in the second term. Under local reparameterization, conditioning on \(z_{m,j}\) uniquely determines the local noise variable,
+\[
+\xi_{z,m,j}
+=
+\frac{z_{m,j}-\gamma_{m,j}}
+{\sqrt{\delta_{m,j}}}.
+\]
+Thus,
+\[
+\operatorname{Var}_{q_\phi,D}
+\left[
+\xi_{z,m,j}
+\mid z_{m,j}
+\right]
+=
+0.
+\]
+Consequently, the second term vanishes, and the conditional variance reduces to
+\[
+\mathbb{E}_{z_{m,j}}
+\left[
+\operatorname{Var}_{q_\phi,D}
+\left[
+\frac{\partial \mathcal{L}^{\mathrm{SGVB}}_D}
+{\partial \sigma_{ij}^2}
+\mid z_{m,j}
+\right]
+\right]
+=
+\mathbb{E}_{z_{m,j}}
+\left[
+\operatorname{Var}_{q_\phi,D}
+\left[
+\frac{\partial \mathcal{L}^{\mathrm{SGVB}}_D}
+{\partial z_{m,j}}
+\mid z_{m,j}
+\right]
+q
+\right].
+\]
+The locally reparameterized estimator therefore removes the additional non-negative variance term that appears under direct weight sampling.
+
+The intuition is that the forward pass depends on the sampled weights only through the pre-activations they produce. Under direct weight sampling, many different weight-noise configurations can lead to the same pre-activation \(z_{m,j}\), and therefore to the same forward computation. However, the gradient estimator still depends on the individual weight-noise variable \(\xi_{w,ij}\), so these different configurations can produce different updates even though they produce the same network output. This adds variance that is unrelated to any change in the learning signal. By sampling the induced pre-activation noise directly, the locally reparameterized estimator removes this unnecessary weight-level randomness.
+
+Whether the same local reparameterization idea can be used to compare WP and NP is not obvious. The setting above differs from the perturbation-learning setting in several important ways. Kingma et al. consider stochastic variational inference in Bayesian neural networks, where the weights have learned posterior means and variances. Their variance-reduction result is derived for a pathwise gradient estimator with respect to the posterior variance parameter \(\sigma_{ij}^{2}\), and the gradient is computed by backpropagation through the sampled network. In the WP setting considered in this thesis, the perturbation scale is fixed, the parameters being updated are the mean weights, and the gradient estimate is obtained from scalar feedback using a score-function estimator rather than backpropagation.
+
+At the same time, the similarity is clear enough to make the question natural. In both cases, a neural network is evaluated after sampling noise at the level of weights, and the resulting stochastic computation is used to estimate a gradient. The local reparameterization trick shows that, in one setting, weight-level noise can be replaced by equivalent pre-activation-level noise in a way that reduces estimator variance. The question is whether the same logic can be applied to the WP--NP setting. This is what Chapter~3 investigates.
