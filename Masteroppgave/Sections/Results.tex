@@ -1,6 +1,8 @@
 \section{Results}
 \label{ch:results}
 
+This chapter presents the empirical results from the evaluation strategy described in Section~\ref{sec:empirical_evaluation_strategy}. The purpose of the chapter is to report the observed training performance and estimator diagnostics for the methods tested in this thesis. The interpretation of these results, including how they relate to the research questions and theoretical contribution, is left to Chapter~\ref{ch:discussion}.
+
 \subsection{Sinus Regression}
 
 Figure~\ref{fig:sinus_results} and Table~\ref{tab:sinus_results_summary} show that all methods were able to learn the sinus regression task well. The node perturbation methods converged to training and test losses close to the backpropagation baseline, with IS-NP and fan-in NP reaching nearly identical loss values. WP ended at a slightly higher loss level, but remained close to the other perturbation methods. IS-NP reached the convergence criterion at approximately the same epoch as backpropagation, while fan-in NP, vanilla NP, and WP converged somewhat later. The standard deviations reported for the best loss and score values are small, indicating little variation across seeds. The fan-in NP curves show somewhat larger fluctuations during training, but without signs of sustained instability. Overall, all perturbation methods worked well as learning algorithms on this task.

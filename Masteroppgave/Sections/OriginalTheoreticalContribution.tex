@@ -1,7 +1,7 @@
-\section{Original Theoretical Contribution}
+\section{Relating Weight and Node Perturbation Through Induced Noise}
 \label{ch:original_theoretical_contribution}
 
-This chapter addresses the second research objective of the thesis: to build on the existing literature in order to clarify the relationship between common perturbation algorithms and use this understanding to develop a theoretically motivated variant of node perturbation. Chapter~2 identified an unresolved gap in the perturbation-learning literature: although WP and NP are often compared, their estimator-level relationship in nonlinear multilayer networks has not been fully characterized. Chapter~2 also introduced the local reparameterization trick of \textcite{kingma2015variational}, where weight-level noise is translated into equivalent pre-activation-level noise in the context of stochastic variational inference for Bayesian neural networks. Kingma et al. show that this reduces gradient-estimator variance. The natural question is therefore whether WP has the structure needed for a similar local reparameterization argument to be applied in the perturbation-learning setting.
+This chapter addresses the second research objective of the thesis by building on the existing literature in order to clarify the relationship between common perturbation algorithms and use this understanding to develop a theoretically motivated variant of node perturbation. Chapter~2 identified an unresolved gap in the perturbation-learning literature: although WP and NP are often compared, their estimator-level relationship in nonlinear multilayer networks has not been fully characterized. Chapter~2 also introduced the local reparameterization trick of \textcite{kingma2015variational}, where weight-level noise is translated into equivalent pre-activation-level noise in the context of stochastic variational inference for Bayesian neural networks. Kingma et al. show that this reduces gradient-estimator variance. The natural question is therefore whether WP has the structure needed for a similar local reparameterization argument to be applied in the perturbation-learning setting.
 
 This chapter shows that the answer is yes. Gaussian WP induces a specific noise distribution at the level of pre-activations. By sampling this induced pre-activation noise directly, we obtain a new node perturbation rule, input-scaled node perturbation (IS-NP). We then show that WP and IS-NP estimate the same perturbation-smoothed objective in expectation, and that IS-NP has lower or equal coordinate-wise estimator variance than WP. The general variance-reduction logic follows the local reparameterization argument of \textcite{kingma2015variational}. However, the application of this logic to perturbation-based learning has, to the best of our knowledge, not previously been done in the literature. This includes the derivation of the WP-induced pre-activation noise in this setting, the construction of IS-NP from that induced noise, the expected-equivalence result between WP and IS-NP, and the corresponding variance comparison. The remainder of this chapter presents our novel contributions to the literature.
 \subsection{Pre-activation noise induced by WP}
@@ -164,7 +164,7 @@ $\sigma \sqrt{1+\|\mathbf{x}^{\ell-1\prime}\|^2}$, the score-function term for t
 =
 \frac{\xi^\ell_{z,j}}{\sigma \sqrt{1+\left\|\mathbf{x}^{\ell-1\prime}\right\|^2}}.
 \end{equation}
-Let $\Delta \ell = L_{\mathrm{pert}} - b$ denote the scalar learning signal. The resulting gradient estimate with respect to the pre-activation is therefore
+The resulting gradient estimate with respect to the pre-activation is therefore
 \begin{equation}
 \hat{g}_{z^\ell_j}
 =
@@ -226,6 +226,7 @@ IS-NP and fan-in-scaled NP are also unbiased estimators of the gradient of the l
 
 Just as the locally reparameterized estimator in Eq.~\eqref{eq:lrt_local_estimator} samples the activation-level noise induced by direct weight sampling in Eq.~\eqref{eq:lrt_direct_weight_estimator}, IS-NP samples the pre-activation noise induced by WP directly at the node level. We now use this correspondence to ask whether the same variance-reduction logic applies: does replacing WP with its local reparameterized version, IS-NP, reduce estimator variance?
 \subsection{Variance reduction theorem}
+\label{sec:variance_reduction_theorem}
 
 We now show that IS-NP can be viewed as the conditional expectation of
 WP given the induced pre-activation noise field. This means that IS-NP removes weight-noise
@@ -420,7 +421,7 @@ Fan-in-scaled NP partially addresses this issue by accounting for the number of 
 IS-NP avoids this average correction by using the actual incoming activation norm, together with the bias contribution, in the current forward pass. Its perturbation scale is therefore adapted to the layer, input example, and current network state. This does not prove that IS-NP must outperform standard NP or fan-in-scaled NP in every practical setting, since other factors may also influence learning performance. However, it gives a clear scaling-based reason to expect more consistent behaviour when activation norms vary across layers, samples, or training time. Whether this advantage translates into better empirical performance is therefore a question to be tested experimentally.
 \subsection{Summary of theoretical contribution}
 
-This chapter addressed the second research objective of the thesis: to further develop the theory of perturbation-based learning. Two main contributions came out of this chapter. 
+This chapter addressed the second research objective by further developing perturbation-based learning. Two main contributions came out of this chapter. 
 
 The first is a more precise comparison between weight-level and node-level perturbation learning in nonlinear multilayer networks. By deriving IS-NP as the local reparameterized version of WP, showing that WP and IS-NP estimate the same perturbation-smoothed objective, and proving that IS-NP has lower or equal coordinate-wise variance than WP, we have clarified the estimator-level relationship between the two perturbation families. This addresses the gap identified in Chapter~2, where the existing literature was shown to lack a general comparison of WP and NP in nonlinear multilayer networks.
 

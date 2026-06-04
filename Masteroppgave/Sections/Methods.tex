@@ -1,12 +1,15 @@
 \section{Method}
 \label{ch:method}
+\label{sec:empirical_evaluation_strategy}
 The goal of the evaluation presented in this chapter is to understand the practical usefulness of perturbation-based learning methods by evaluating them empirically. This directly addresses the third research objective of the thesis, but it also supports the second objective by testing whether the theoretical contribution developed in Chapter~\ref{ch:original_theoretical_contribution} leads to practical improvements. Although the theoretical analysis in Chapters~2 and~3 gives useful predictions about the relationship between backpropagation and perturbation methods, and about the relationship between different perturbation methods, theory alone does not determine practical learning performance. Neural network optimization problems are generally high-dimensional and non-convex, and the behaviour of a learning rule depends on more than its expected update or estimator variance in isolation. This evaluation is divided into three related parts.
 
 The first part asks how well perturbation-based learning methods work in practice as alternatives to backpropagation. Backpropagation is included as the standard reference method because it computes the exact gradient that the perturbation methods attempt to estimate. The goal is not to show that perturbation methods outperform backpropagation, but to understand how close they can get, how difficult a task they can solve, and where their performance begins to break down. Therefore, worse performance than backpropagation should not be interpreted as a failure of the empirical evaluation. It is an expected and informative part of the comparison, because it shows the practical cost of replacing exact gradient computation with stochastic perturbation-based estimates. This is important in relation to the motivation of Chapter~\ref{ch:introduction}: if backpropagation is difficult or impossible to use in biologically inspired architectures or other constrained settings, it is useful to know how capable perturbation-based learning methods are as substitutes.
 
 The second and third parts evaluate the practical consequences of the two main theoretical contributions from Chapter~3. The first contribution was the variance comparison between WP and IS-NP. Empirically, this raises the question of whether the lower estimator variance of IS-NP leads to better learning performance, faster convergence, or more stable updates than WP in practice. The second contribution was the derivation of IS-NP as a new node perturbation rule with input-dependent scaling. Empirically, this raises the question of whether scaling perturbations by the actual incoming activation norm improves over the fixed perturbation scale of vanilla NP or the layer-width-based correction of fan-in-scaled NP. The empirical evaluation outlined here is going to test whether the theoretical advantages identified in Chapter~3 translate into practical improvements.
 
-To answer these questions, the methods are evaluated on four supervised learning problems of increasing complexity: synthetic sinus regression, California housing regression, MNIST classification, and CIFAR-10 classification. This progression is chosen so that the experiments can show not only whether a method works, but also how its performance changes as the learning problem becomes more difficult. Simple tasks reveal whether the methods can learn under favourable conditions, while harder tasks make the differences between learning rules more visible. The purpose of including difficult tasks is both to clearly reveal differences between methods and to identify where the perturbation methods become inefficient, unstable, or unable to match the reference performance of backpropagation. The natural next question is therefore: what does it mean for a learning method to work well?
+To answer these questions, the methods are evaluated on four supervised learning problems of increasing complexity: synthetic sinus regression, California housing regression, MNIST classification, and CIFAR-10 classification. This progression is chosen so that the experiments can show not only whether a method works, but also how its performance changes as the learning problem becomes more difficult. Simple tasks reveal whether the methods can learn under favourable conditions, while harder tasks make the differences between learning rules more visible. The purpose of including difficult tasks is both to clearly reveal differences between methods and to identify where the perturbation methods become inefficient, unstable, or unable to match the reference performance of backpropagation.
+
+All code used to produce the results in this thesis is available in the GitHub repository \url{https://github.com/MatsStuben/backprop-alternatives}. This includes the implementation of the learning algorithms, model training, metric calculations, hyperparameter tuning, and generation of plots.
 
 \subsection{Learning problems and datasets}
 
@@ -19,7 +22,19 @@ The preprocessing is kept simple and standard. The imported datasets are used in
 
 The sinus task is a synthetic regression problem designed to provide a controlled nonlinear learning problem. The input is an eight-dimensional vector, and the target is generated from a smooth nonlinear function containing sinusoidal terms, quadratic terms, and a small interaction term. This makes the task more interesting than a linear regression problem while still being simple enough that all learning methods should be expected to make progress.
 
-The dataset consists of 512 training examples and 512 test examples. The task is a scalar regression problem, so each input vector is mapped to one real-valued output. The training inputs are sampled uniformly from \([-1,1]^8\). Training targets are corrupted with additive Gaussian noise with standard deviation \(0.1\), while the test targets are generated from the noiseless target function.
+For an input vector \(\mathbf{x}\in[-1,1]^8\), the noiseless target function is
+\[
+f(\mathbf{x})
+=
+\frac{1}{\sqrt{8}}
+\left(
+0.6\sum_{i=1}^{8}\sin(\pi x_i)
++0.3\sum_{i=1}^{8}x_i^2
++0.2x_1x_2
+\right).
+\]
+
+The dataset consists of 512 training examples and 512 test examples. The task is a scalar regression problem, so each input vector is mapped to one real-valued output. The training inputs are sampled uniformly from \([-1,1]^8\). Training targets are corrupted with additive Gaussian noise with standard deviation \(0.1\), while the test targets are generated from the noiseless target function. The dataset is generated directly in the experiment.
 
 No external preprocessing is applied to the sinus inputs in the main experiment. The model receives the sampled input vector directly, so the input values remain in the range \([-1,1]\).
 
@@ -27,7 +42,7 @@ No external preprocessing is applied to the sinus inputs in the main experiment.
 
 The California housing task is a real tabular regression problem. The goal is to predict median house value from housing and geographical features describing districts in California. Compared with the sinus task, this is a less controlled problem because the data come from a real dataset rather than a generated function, but it remains low-dimensional and is therefore a useful intermediate regression task.
 
-The dataset contains 20,640 examples. It is split into 16,512 training examples and 4,128 test examples, corresponding to an 80/20 train-test split. Each input has eight features, and the output is one real-valued target, so the task is scalar regression.
+The dataset contains 20,640 examples. It is split into 16,512 training examples and 4,128 test examples, corresponding to an 80/20 train-test split. Each input has eight features, and the output is one real-valued target, so the task is scalar regression. The dataset is loaded using \texttt{sklearn.datasets.fetch\_california\_housing}.
 
 The input features are standardized using the mean and standard deviation computed from the training split. The target values are standardized in the same way. The test set is transformed using the training-split statistics, so no information from the test set is used during preprocessing.
 
@@ -35,7 +50,7 @@ The input features are standardized using the mean and standard deviation comput
 
 MNIST is a handwritten digit classification task. Each example is a grayscale image of a digit from 0 to 9, and the goal is to assign the image to the correct digit class. The task is substantially higher-dimensional than the two regression tasks, but the images are simple and centered, making MNIST a standard first benchmark for image classification methods.
 
-The full MNIST dataset contains 60,000 training images and 10,000 test images, and the full training and test sets are used in this thesis. Each image has size \(28\times28\), which gives 784 input values after flattening. The output is a 10-dimensional vector corresponding to the ten digit classes, and the task is classification.
+The full MNIST dataset contains 60,000 training images and 10,000 test images, and the full training and test sets are used in this thesis. Each image has size \(28\times28\), which gives 784 input values after flattening. The output is a 10-dimensional vector corresponding to the ten digit classes, and the task is classification. The dataset is loaded using \texttt{torchvision.datasets.MNIST}.
 
 Pixel values are scaled to \([0,1]\), mean-centered using the scalar mean of the training set, and flattened into vectors. The class labels are converted to one-hot vectors for training.
 
@@ -43,7 +58,7 @@ Pixel values are scaled to \([0,1]\), mean-centered using the scalar mean of the
 
 CIFAR-10 is an image classification task with ten object classes. Each example is a small colour image, and the goal is to assign the image to the correct class. Compared with MNIST, CIFAR-10 is substantially more difficult because the images contain colour, background variation, and more complex visual structure. It is therefore included as the hardest task in the empirical evaluation.
 
-The full CIFAR-10 dataset contains 50,000 training images and 10,000 test images, and the full training and test sets are used in this thesis. Each image has size \(32\times32\) with three colour channels, giving 3072 input values after flattening. The output is a 10-dimensional vector corresponding to the ten classes, and the task is classification.
+The full CIFAR-10 dataset contains 50,000 training images and 10,000 test images, and the full training and test sets are used in this thesis. Each image has size \(32\times32\) with three colour channels, giving 3072 input values after flattening. The output is a 10-dimensional vector corresponding to the ten classes, and the task is classification. The dataset is loaded using \texttt{torchvision.datasets.CIFAR10}.
 
 Pixel values are scaled to \([0,1]\), mean-centered using the scalar mean of the training set, rearranged to channel-first format, and flattened into vectors. The class labels are converted to one-hot vectors for training.
 
@@ -55,163 +70,155 @@ The purpose of this diagnostic is to test how sensitive the perturbation estimat
 
 This is especially useful because the sinus architecture uses equal hidden-layer widths, so the diagnostic is not confounded by different layer sizes. The experiment therefore focuses directly on the effect of input scale. The same kind of scale mismatch could also occur inside deeper networks if activation norms vary strongly across layers or samples, but the sinus diagnostic makes the effect visible in a simple controlled setting.
 
-As with the main sinus diagnostics, the scaled-input diagnostic is evaluated across 10 random seeds, and the reported cosine similarity and estimator variance are averaged over the three frozen checkpoints.
+Since the scaled-input experiment is designed to test estimator quality under input rescaling, we report cosine similarity and estimator variance rather than learning curves. The diagnostics use the same setup as the main sinus task in Table~\ref{tab:task_training_protocol}: 10 random seeds and checkpoints at epochs 1, 120, and 240 of the BP diagnostic run. The meaning of these seeds and checkpoints is explained later in this chapter.
 
-\begin{sidewaystable}[!p]
+\begin{table}[!htbp]
 \centering
-\scriptsize
-\caption{Learning problems used in the empirical evaluation.}
+\small
+\caption{Datasets used in the empirical evaluation.}
 \label{tab:learning_problem_setup}
-\begin{tabularx}{\textheight}{
+\begin{tabularx}{\textwidth}{
     >{\raggedright\arraybackslash}p{2.4cm}
-    >{\raggedright\arraybackslash}p{1.8cm}
-    >{\centering\arraybackslash}p{1.9cm}
-    >{\centering\arraybackslash}p{1.7cm}
-    >{\centering\arraybackslash}p{1.7cm}
-    >{\centering\arraybackslash}p{1.5cm}
-    >{\raggedright\arraybackslash}X
-    >{\centering\arraybackslash}p{1.4cm}
+    >{\centering\arraybackslash}X
+    >{\centering\arraybackslash}X
+    >{\centering\arraybackslash}X
+    >{\centering\arraybackslash}X
 }
 \toprule
-\textbf{Dataset} &
-\textbf{Task type} &
-\textbf{Input \(\rightarrow\) output} &
-\textbf{Train size} &
-\textbf{Test size} &
-\textbf{Score} &
-\textbf{Source} &
-\textbf{Difficulty} \\
+\textbf{Property} &
+\textbf{Synthetic sinus} &
+\textbf{California housing} &
+\textbf{MNIST} &
+\textbf{CIFAR-10} \\
 \midrule
-Synthetic sinus &
+\textbf{Task type} &
 Regression &
-\(8 \rightarrow 1\) &
-512 &
-512 &
-\(R^2\) &
-Generated in the experiment &
-1 \\
-\addlinespace
-California housing &
 Regression &
-\(8 \rightarrow 1\) &
-16,512 &
-4,128 &
-\(R^2\) &
-\texttt{sklearn.datasets.fetch\_california\_housing} &
-2 \\
-\addlinespace
-MNIST &
 Classification &
+Classification \\
+\addlinespace
+\textbf{Input \(\rightarrow\) output} &
+\(8 \rightarrow 1\) &
+\(8 \rightarrow 1\) &
 \(784 \rightarrow 10\) &
-60,000 &
-10,000 &
-Accuracy &
-\texttt{torchvision.datasets.MNIST} &
-3 \\
+\(3072 \rightarrow 10\) \\
 \addlinespace
-CIFAR-10 &
-Classification &
-\(3072 \rightarrow 10\) &
-50,000 &
+\textbf{Train size} &
+512 &
+16,512 &
+60,000 &
+50,000 \\
+\addlinespace
+\textbf{Test size} &
+512 &
+4,128 &
 10,000 &
+10,000 \\
+\addlinespace
+\textbf{Score} &
+\(R^2\) &
+\(R^2\) &
 Accuracy &
-\texttt{torchvision.datasets.CIFAR10} &
+Accuracy \\
+\addlinespace
+\textbf{Difficulty} &
+1 &
+2 &
+3 &
 4 \\
 \bottomrule
 \end{tabularx}
-\end{sidewaystable}
+\end{table}
 \FloatBarrier
 
 \subsection{Model architecture and initialization}
 
-All experiments use fully connected multilayer perceptrons (MLPs). This choice is made to keep the empirical evaluation aligned with the theoretical setting considered in the thesis and to isolate differences between learning rules rather than differences between architectures. For image classification tasks such as MNIST and CIFAR-10, convolutional networks would normally be a more appropriate architecture and would likely give better absolute performance. However, the goal here is not to maximize benchmark accuracy, but to compare perturbation-based learning rules under a common model class. This is also consistent with much of the perturbation-learning literature, where fully connected networks are commonly used to study the behaviour of the learning rule itself. The hidden-layer activation function is sigmoid for the two regression tasks and ReLU for the two classification tasks, while all output layers are linear. The specific layer sizes used for each task are shown in Table~\ref{tab:model_architectures}. All layers are implemented as PyTorch \texttt{nn.Linear} layers with bias terms. Since no custom initialization is applied, the weights and biases use the default PyTorch initialization for linear layers, which is Kaiming-uniform-style for the weights with fan-in-dependent uniform initialization for the biases.
+All experiments use fully connected multilayer perceptrons (MLPs). This choice is made to keep the empirical evaluation aligned with the theoretical setting considered in the thesis and to isolate differences between learning rules rather than differences between architectures. For image classification tasks such as MNIST and CIFAR-10, convolutional networks would normally be a more appropriate architecture and would likely give better absolute performance. However, the goal here is not to maximize benchmark accuracy, but to compare perturbation-based learning rules under a common model class. This is also consistent with much of the perturbation-learning literature, where fully connected networks are commonly used to study the behaviour of the learning rule itself. The hidden-layer activation function is sigmoid for the two regression tasks and ReLU for the two classification tasks, while all output layers are linear. The specific layer sizes used for each task are shown in Table~\ref{tab:model_architectures}. All layers are implemented as PyTorch \texttt{nn.Linear} layers with bias terms. Since no custom initialization is applied, the weights and biases use the default PyTorch initialization for linear layers, which is Kaiming-uniform.
 
-\begin{sidewaystable}[!p]
+\begin{table}[!htbp]
 \centering
-\scriptsize
+\small
 \caption{Model architectures used in the empirical evaluation.}
 \label{tab:model_architectures}
-\begin{tabularx}{\textheight}{
-    >{\raggedright\arraybackslash}p{2.6cm}
-    >{\centering\arraybackslash}p{3.1cm}
-    >{\centering\arraybackslash}p{2.5cm}
-    >{\centering\arraybackslash}p{2.3cm}
-    >{\centering\arraybackslash}p{1.6cm}
-    >{\raggedright\arraybackslash}X
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{2.4cm}
+    >{\centering\arraybackslash}X
+    >{\centering\arraybackslash}X
+    >{\centering\arraybackslash}X
+    >{\centering\arraybackslash}X
 }
 \toprule
-\textbf{Task} &
-\textbf{Layer sizes} &
-\textbf{Hidden activation} &
-\textbf{Output activation} &
-\textbf{Biases} &
-\textbf{Initialization} \\
+\textbf{Property} &
+\textbf{Sinus regression} &
+\textbf{California housing} &
+\textbf{MNIST} &
+\textbf{CIFAR-10} \\
 \midrule
-Sinus regression &
+\textbf{Layer sizes} &
 \(8\)-\(8\)-\(8\)-\(1\) &
-Sigmoid &
-Linear &
-Yes &
-Kaiming-uniform-style weights; fan-in-dependent uniform biases \\
-\addlinespace
-California housing &
 \(8\)-\(128\)-\(64\)-\(1\) &
-Sigmoid &
-Linear &
-Yes &
-Kaiming-uniform-style weights; fan-in-dependent uniform biases \\
-\addlinespace
-MNIST &
 \(784\)-\(256\)-\(128\)-\(10\) &
-ReLU &
-Linear &
-Yes &
-Kaiming-uniform-style weights; fan-in-dependent uniform biases \\
+\(3072\)-\(512\)-\(256\)-\(10\) \\
 \addlinespace
-CIFAR-10 &
-\(3072\)-\(512\)-\(256\)-\(10\) &
+\textbf{Hidden activation} &
+Sigmoid &
+Sigmoid &
 ReLU &
+ReLU \\
+\addlinespace
+\textbf{Output activation} &
 Linear &
+Linear &
+Linear &
+Linear \\
+\addlinespace
+\textbf{Biases} &
 Yes &
-Kaiming-uniform-style weights; fan-in-dependent uniform biases \\
+Yes &
+Yes &
+Yes \\
+\addlinespace
+\textbf{Initialization} &
+Kaiming-uniform &
+Kaiming-uniform &
+Kaiming-uniform &
+Kaiming-uniform \\
 \bottomrule
 \end{tabularx}
-\end{sidewaystable}
+\end{table}
 \FloatBarrier
 
 \subsection{Algorithms}
 
 The perturbation estimators used in the experiments are the same score-function-style estimators derived in Chapters~\ref{ch:theory} and~\ref{ch:original_theoretical_contribution}. This section therefore does not rederive the learning rules, but specifies the implementation choices used in the empirical evaluation. These choices are important because they determine how the theoretical estimators are turned into practical mini-batch training algorithms.
 
-All learning methods are trained using mini-batches. The task-specific mini-batch sizes are given in Table~\ref{tab:task_training_protocol}. For backpropagation, this is the standard mini-batch SGD update: the MSE loss is averaged over the mini-batch, the gradient is computed by backpropagation, and the parameters are updated with SGD. No momentum, Adam, weight decay, or learning-rate schedule is used. Backpropagation is therefore not listed as a separate algorithm below, since it is the standard SGD implementation of the gradient computation described in Chapter~\ref{ch:theory}. It is included only as the reference method against which the perturbation methods are compared.
+All learning methods are trained using mini-batches. The task-specific mini-batch sizes are given in Table 4. For backpropagation, this is the standard mini-batch SGD update: the MSE loss is averaged over the mini-batch, the gradient is computed by backpropagation, and the parameters are updated with SGD. No momentum, Adam, weight decay, or learning-rate schedule is used. This choice was made to keep the comparison focused on the learning rules themselves. The perturbation methods are also evaluated in their basic form, without additional optimizer mechanisms or regularization techniques. Such extensions could be interesting in future work, but the aim here is first to compare the vanilla versions of the methods under the same simple SGD-style update setting. Backpropagation is therefore not listed as a separate algorithm below, since it is the standard SGD implementation of the gradient computation described in Chapter 2. It is included only as the reference method against which the perturbation methods are compared.
 
 For the perturbation methods, independent perturbations are sampled for each example in the mini-batch. Thus, each example produces its own noisy forward pass and its own scalar loss. The parameter update is then obtained by averaging the resulting per-example update estimates across the mini-batch. Sampling independent perturbations per example is important because the batch-mean baseline relies on variation between perturbations inside the same mini-batch. If the same perturbation were shared by the whole batch, subtracting the batch mean would remove the useful scalar learning signal.
 
-Let \(\mathcal{B}=\{(x_i,y_i)\}_{i=1}^m\) denote a mini-batch of size \(m\), and let \(\ell_i\) be the noisy loss obtained for example \(i\). The scalar learning signal used for each example is
+Let \(\mathcal{B}=\{(x_i,y_i)\}_{i=1}^m\) denote a mini-batch of size \(m\), and let \(\ell_i\) be the noisy loss obtained for example \(i\). The mini-batch baseline used in the implementation is
 \[
-    r_i
-    =
-    \bar{\ell}_{\mathcal{B}}-\ell_i,
-    \qquad
-    \bar{\ell}_{\mathcal{B}}
+    b_{\mathcal{B}}
     =
     \frac{1}{m}\sum_{j=1}^m \ell_j .
 \]
-Thus, perturbations that lead to lower-than-average loss receive a positive learning signal, while perturbations that lead to higher-than-average loss are reversed.
+The perturbation estimator is then formed using \(\ell_i-b_{\mathcal{B}}\). Thus, perturbations that lead to lower-than-average loss give a negative estimated gradient contribution and are reinforced by the gradient-descent update, while perturbations that lead to higher-than-average loss are reversed.
 
 In the theoretical derivation, an independent baseline is required for the usual unbiasedness argument. A leave-one-out mini-batch baseline,
 \[
-    \bar{\ell}_{-i}
+    b_{-i}
     =
     \frac{1}{m-1}\sum_{j\neq i}\ell_j,
 \]
-would satisfy this condition because the baseline for example \(i\) would not include the noisy loss generated by the perturbation of that same example. In the implementation, however, the full mini-batch mean \(\bar{\ell}_{\mathcal{B}}\) is used instead. This means that the baseline is not strictly independent of the perturbation for example \(i\), so the estimator is not exactly the same unbiased estimator as the leave-one-out version. This choice is made for computational reasons: the full batch mean is obtained directly from the losses already computed in the noisy forward pass, while a leave-one-out baseline would require a separate baseline value for every example in the mini-batch. Since the self-inclusion effect is of order \(1/m\), it is expected to be small for the batch sizes used in the experiments, and the practical benefit of avoiding the additional computation is considered to outweigh this small approximation.
+would satisfy this condition because the baseline for example \(i\) would not include the noisy loss generated by the perturbation of that same example. In the implementation, however, the full mini-batch mean \(b_{\mathcal{B}}\) is used instead. This means that the baseline is not strictly independent of the perturbation for example \(i\), so the estimator is not exactly the same unbiased estimator as the leave-one-out version. This choice is made for computational reasons: the full batch mean is obtained directly from the losses already computed in the noisy forward pass, while a leave-one-out baseline would require a separate baseline value for every example in the mini-batch. Since the self-inclusion effect is of order \(1/m\), it is expected to be small for the batch sizes used in the experiments, and the practical benefit of avoiding the additional computation is considered to outweigh this small approximation.
+
+\newcommand{\algorithmicrowspacing}{\setlength{\itemsep}{0.35em}}
 
 \begin{algorithm}[htbp]
 \caption{Weight perturbation (WP)}
 \label{alg:wp_training}
-\begin{algorithmic}[1]
-\Require Training set \(\mathcal{D}\), model parameters \(\{W_k,b_k\}_{k=1}^{L}\), epochs \(E\), mini-batch size \(B\), learning rate \(\eta\), noise scale \(\sigma\)
+\begin{algorithmic}[1]\algorithmicrowspacing
+\Require Training set \(\mathcal{D}\), model parameters \(\theta=\{W_k,b_k\}_{k=1}^{L}\), epochs \(E\), mini-batch size \(B\), learning rate \(\eta\), noise scale \(\sigma\)
 \For{\(e=1,\ldots,E\)}
     \For{mini-batch \(\mathcal{B}\subset\mathcal{D}\)}
         \State \(m \gets |\mathcal{B}|\)
@@ -224,12 +231,9 @@ would satisfy this condition because the baseline for example \(i\) would not in
             \EndFor
             \State \(\ell_i\gets \mathcal{L}(a_{L,i},y_i)\)
         \EndFor
-        \State \(r_i\gets \frac{1}{m}\sum_{j=1}^{m}\ell_j-\ell_i\) for all \(i\)
-        \For{layer \(k=1,\ldots,L\)}
-            \State \(\Delta W_k\gets \frac{1}{m}\sum_{i=1}^{m} r_i \xi^W_{k,i}/(\sigma+\epsilon_{\mathrm{num}})\)
-            \State \(\Delta b_k\gets \frac{1}{m}\sum_{i=1}^{m} r_i \xi^b_{k,i}/(\sigma+\epsilon_{\mathrm{num}})\)
-            \State \(W_k\gets W_k+\eta\Delta W_k,\quad b_k\gets b_k+\eta\Delta b_k\)
-        \EndFor
+        \State \(b\gets \frac{1}{m}\sum_{j=1}^{m}\ell_j\)
+        \State \(\xi_i\gets\{\xi^W_{k,i},\xi^b_{k,i}\}_{k=1}^{L}\) for all \(i\)
+        \State \(\theta\gets \theta-\eta\frac{1}{m}\sum_{i=1}^{m}(\ell_i-b)\xi_i/(\sigma+\epsilon_{\mathrm{num}})\)
     \EndFor
 \EndFor
 \end{algorithmic}
@@ -238,8 +242,8 @@ would satisfy this condition because the baseline for example \(i\) would not in
 \begin{algorithm}[htbp]
 \caption{Vanilla node perturbation with fixed pre-activation noise}
 \label{alg:vanilla_np_training}
-\begin{algorithmic}[1]
-\Require Training set \(\mathcal{D}\), model parameters \(\{W_k,b_k\}_{k=1}^{L}\), epochs \(E\), mini-batch size \(B\), learning rate \(\eta\), noise scale \(\sigma\)
+\begin{algorithmic}[1]\algorithmicrowspacing
+\Require Training set \(\mathcal{D}\), model parameters \(\theta=\{W_k,b_k\}_{k=1}^{L}\), epochs \(E\), mini-batch size \(B\), learning rate \(\eta\), noise scale \(\sigma\)
 \For{\(e=1,\ldots,E\)}
     \For{mini-batch \(\mathcal{B}\subset\mathcal{D}\)}
         \State \(m \gets |\mathcal{B}|\)
@@ -252,13 +256,10 @@ would satisfy this condition because the baseline for example \(i\) would not in
             \EndFor
             \State \(\ell_i\gets \mathcal{L}(a_{L,i},y_i)\)
         \EndFor
-        \State \(r_i\gets \frac{1}{m}\sum_{j=1}^{m}\ell_j-\ell_i\) for all \(i\)
-        \For{layer \(k=1,\ldots,L\)}
-            \State \(q_{k,i}\gets r_i\xi_{k,i}/(s_{k,i}+\epsilon_{\mathrm{num}})\) for all \(i\)
-            \State \(\Delta W_k\gets \frac{1}{m}\sum_{i=1}^{m}q_{k,i}a_{k-1,i}^{\top}\)
-            \State \(\Delta b_k\gets \frac{1}{m}\sum_{i=1}^{m}q_{k,i}\)
-            \State \(W_k\gets W_k+\eta\Delta W_k,\quad b_k\gets b_k+\eta\Delta b_k\)
-        \EndFor
+        \State \(b\gets \frac{1}{m}\sum_{j=1}^{m}\ell_j\)
+        \State \(\widehat{g}_{z,k,i}\gets(\ell_i-b)\xi_{k,i}/(s_{k,i}+\epsilon_{\mathrm{num}})\) for all \(k,i\)
+        \State \(W_k\gets W_k-\eta\frac{1}{m}\sum_{i=1}^{m}\widehat{g}_{z,k,i}a_{k-1,i}^{\top}\) for all \(k\)
+        \State \(b_k\gets b_k-\eta\frac{1}{m}\sum_{i=1}^{m}\widehat{g}_{z,k,i}\) for all \(k\)
     \EndFor
 \EndFor
 \end{algorithmic}
@@ -267,8 +268,8 @@ would satisfy this condition because the baseline for example \(i\) would not in
 \begin{algorithm}[htbp]
 \caption{Fan-in scaled node perturbation}
 \label{alg:fan_in_np_training}
-\begin{algorithmic}[1]
-\Require Training set \(\mathcal{D}\), model parameters \(\{W_k,b_k\}_{k=1}^{L}\), layer input dimensions \(d_{k-1}\), epochs \(E\), mini-batch size \(B\), learning rate \(\eta\), noise scale \(\sigma\)
+\begin{algorithmic}[1]\algorithmicrowspacing
+\Require Training set \(\mathcal{D}\), model parameters \(\theta=\{W_k,b_k\}_{k=1}^{L}\), layer input dimensions \(d_{k-1}\), epochs \(E\), mini-batch size \(B\), learning rate \(\eta\), noise scale \(\sigma\)
 \For{\(e=1,\ldots,E\)}
     \For{mini-batch \(\mathcal{B}\subset\mathcal{D}\)}
         \State \(m \gets |\mathcal{B}|\)
@@ -282,23 +283,21 @@ would satisfy this condition because the baseline for example \(i\) would not in
             \EndFor
             \State \(\ell_i\gets \mathcal{L}(a_{L,i},y_i)\)
         \EndFor
-        \State \(r_i\gets \frac{1}{m}\sum_{j=1}^{m}\ell_j-\ell_i\) for all \(i\)
-        \For{layer \(k=1,\ldots,L\)}
-            \State \(q_{k,i}\gets r_i\xi_{k,i}/(s_{k,i}+\epsilon_{\mathrm{num}})\) for all \(i\)
-            \State \(\Delta W_k\gets \frac{1}{m}\sum_{i=1}^{m}q_{k,i}a_{k-1,i}^{\top}\)
-            \State \(\Delta b_k\gets \frac{1}{m}\sum_{i=1}^{m}q_{k,i}\)
-            \State \(W_k\gets W_k+\eta\Delta W_k,\quad b_k\gets b_k+\eta\Delta b_k\)
-        \EndFor
+        \State \(b\gets \frac{1}{m}\sum_{j=1}^{m}\ell_j\)
+        \State \(\widehat{g}_{z,k,i}\gets(\ell_i-b)\xi_{k,i}/(s_{k,i}+\epsilon_{\mathrm{num}})\) for all \(k,i\)
+        \State \(W_k\gets W_k-\eta\frac{1}{m}\sum_{i=1}^{m}\widehat{g}_{z,k,i}a_{k-1,i}^{\top}\) for all \(k\)
+        \State \(b_k\gets b_k-\eta\frac{1}{m}\sum_{i=1}^{m}\widehat{g}_{z,k,i}\) for all \(k\)
     \EndFor
 \EndFor
 \end{algorithmic}
 \end{algorithm}
+\vspace{2.5em}
 
 \begin{algorithm}[htbp]
 \caption{Input-scaled node perturbation (IS-NP)}
 \label{alg:is_np_training}
-\begin{algorithmic}[1]
-\Require Training set \(\mathcal{D}\), model parameters \(\{W_k,b_k\}_{k=1}^{L}\), epochs \(E\), mini-batch size \(B\), learning rate \(\eta\), noise scale \(\sigma\)
+\begin{algorithmic}[1]\algorithmicrowspacing
+\Require Training set \(\mathcal{D}\), model parameters \(\theta=\{W_k,b_k\}_{k=1}^{L}\), epochs \(E\), mini-batch size \(B\), learning rate \(\eta\), noise scale \(\sigma\)
 \For{\(e=1,\ldots,E\)}
     \For{mini-batch \(\mathcal{B}\subset\mathcal{D}\)}
         \State \(m \gets |\mathcal{B}|\)
@@ -312,13 +311,10 @@ would satisfy this condition because the baseline for example \(i\) would not in
             \EndFor
             \State \(\ell_i\gets \mathcal{L}(a_{L,i},y_i)\)
         \EndFor
-        \State \(r_i\gets \frac{1}{m}\sum_{j=1}^{m}\ell_j-\ell_i\) for all \(i\)
-        \For{layer \(k=1,\ldots,L\)}
-            \State \(q_{k,i}\gets r_i\xi_{k,i}/(s_{k,i}+\epsilon_{\mathrm{num}})\) for all \(i\)
-            \State \(\Delta W_k\gets \frac{1}{m}\sum_{i=1}^{m}q_{k,i}a_{k-1,i}^{\top}\)
-            \State \(\Delta b_k\gets \frac{1}{m}\sum_{i=1}^{m}q_{k,i}\)
-            \State \(W_k\gets W_k+\eta\Delta W_k,\quad b_k\gets b_k+\eta\Delta b_k\)
-        \EndFor
+        \State \(b\gets \frac{1}{m}\sum_{j=1}^{m}\ell_j\)
+        \State \(\widehat{g}_{z,k,i}\gets(\ell_i-b)\xi_{k,i}/(s_{k,i}+\epsilon_{\mathrm{num}})\) for all \(k,i\)
+        \State \(W_k\gets W_k-\eta\frac{1}{m}\sum_{i=1}^{m}\widehat{g}_{z,k,i}a_{k-1,i}^{\top}\) for all \(k\)
+        \State \(b_k\gets b_k-\eta\frac{1}{m}\sum_{i=1}^{m}\widehat{g}_{z,k,i}\) for all \(k\)
     \EndFor
 \EndFor
 \end{algorithmic}
@@ -434,7 +430,7 @@ These are then averaged before computing cosine similarity:
     \sum_{k=1}^{K}
     \widehat{u}^{(k)}_m,
 \]
-Averaging over \(K\) independent gradient estimates makes the result less dependent on a single lucky or unlucky perturbation draw, and therefore gives a more reliable estimate of the expected update direction. However, increasing \(K\) also increases memory use and computation time. The task-specific values of \(K\), listed as gradient estimates per mini-batch in Table~\ref{tab:task_training_protocol}, are therefore smaller for the larger image models. The update directions are stored before multiplication by the learning rate, so the cosine comparison measures directional quality independently of the learning-rate choice. The batch-level cosine similarity is then computed as
+Averaging over \(K\) independent perturbation estimates reduces the dependence of the diagnostic on any single perturbation draw. This makes the cosine similarity a more stable and fair comparison of the typical update direction produced by each method.
 \[
     \cos(\bar{u}_m,u_{\mathrm{BP}})
     =
@@ -549,7 +545,7 @@ The second phase combined the selected perturbation scales with learning-rate tu
 \begin{sidewaystable}[!p]
 \centering
 \scriptsize
-\caption{Local hyperparameter grids used during tuning. For perturbation methods, the grid is the Cartesian product of the listed learning rates and perturbation scales. The selected setting is the final configuration used for the thesis results and is shown as the central value of the displayed local grid.}
+\caption{Local hyperparameter grids used during tuning. For perturbation methods, the grid is the Cartesian product of the listed learning rates and perturbation scales. The selected setting is the final configuration used for the thesis results.}
 \label{tab:hyperparameter_search_grids}
 \begin{tabularx}{\textheight}{
     >{\raggedright\arraybackslash}p{2.3cm}

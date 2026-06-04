@@ -299,6 +299,9 @@ This appendix contains the full numerical summary tables for the four learning p
 
 \subsection{Expected Equivalence Between WP and IS-NP}
 \label{app:expected_equivalence_wp_isnp}
+
+This appendix derives the expected-equivalence result between WP and IS-NP. The derivation shows that the two methods induce the same distribution over perturbed forward passes, and therefore estimate the gradient of the same perturbation-smoothed objective. This result is not the central contribution of Chapter~\ref{ch:original_theoretical_contribution}, but it strengthens the variance analysis in Section~\ref{sec:variance_reduction_theorem} by showing that WP and IS-NP can be compared as estimators with the same expected update.
+
 Recall from Section~2.4 that WP does not optimize the deterministic loss directly, but the perturbation-smoothed objective
 \begin{equation}
 F(\theta)
@@ -483,4 +486,4 @@ N_{\ell-1}.
 \end{equation}
 Thus, standard NP and fan-in-scaled NP generally induce different distributions over pre-activation perturbations than WP and IS-NP. They may match WP under special normalization assumptions, but not in the general case where the incoming activation norm varies across layers, samples, and training time.
 
-This distinction is important for the variance analysis that follows. Since WP and IS-NP estimate the gradient of the same perturbation-smoothed objective, comparing their variance is a clean estimator-level comparison: both estimators have the same expectation, and the only question is how much they vary around it. The same is not generally true for standard NP or fan-in-scaled NP, since these methods may target slightly different smoothed objectives. IS-NP therefore provides something that the existing NP variants do not: a node-level perturbation rule that can be compared directly with WP at the level of estimator variance.
+This distinction provides useful context for the variance analysis in Section~\ref{sec:variance_reduction_theorem}. Since WP and IS-NP estimate the gradient of the same perturbation-smoothed objective, comparing their variance is a clean estimator-level comparison: both estimators have the same expectation, and the only question is how much they vary around it. The same is not generally true for standard NP or fan-in-scaled NP, since these methods may target slightly different smoothed objectives. IS-NP therefore provides something that the existing NP variants do not: a node-level perturbation rule that can be compared directly with WP at the level of estimator variance.

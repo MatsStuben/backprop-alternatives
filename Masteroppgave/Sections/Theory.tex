@@ -1,17 +1,15 @@
 \section{Theory}
 \label{ch:theory}
 
-Chapter~1 motivated why biologically plausible learning algorithms are interesting. To understand why perturbation methods are relevant in this context, we need to establish two things: first, that the current dominant training algorithm, backpropagation, is difficult to reconcile with biological constraints; and second, that perturbation-based methods satisfy these constraints more naturally.
+Chapter~\ref{ch:introduction} motivated why biologically plausible learning algorithms are interesting. To understand why perturbation methods are relevant in this context, we need to establish two things: first, that the current dominant training algorithm, backpropagation, is difficult to reconcile with biological constraints; and second, that perturbation-based methods satisfy these constraints more naturally. This chapter therefore begins by introducing the biological learning principles relevant for the thesis, drawing on work on synaptic plasticity, neuromodulation, and three-factor learning rules \parencite{hebb1949organization,schultz1997neural,fremaux2016neuromodulated,gerstner2018eligibility}. It then reviews learning in artificial neural networks, derives the backpropagation update \parencite{rumelhart1986learning}, and explains why backpropagation is considered biologically implausible \parencite{crick1989recent,lillicrap2020backpropagation}. With this background in place, the chapter turns to perturbation-based learning \parencite{williams1992simple,werfel2005learning,hiratani2022stability,zuge2023weight} and addresses the first research objective by reviewing what has been proposed and theoretically established in this literature, and identifying the remaining gaps that motivate the theoretical contribution in Chapter~\ref{ch:original_theoretical_contribution}.
 
 Parts of the background material in this chapter build on my earlier project thesis on biologically plausible alternatives to backpropagation \parencite{martinussen2025project}. In particular, Sections~2.1 and~2.2, together with the introductory derivations of weight perturbation and node perturbation in Sections~2.4 and~2.5, reuse and adapt theory that remains unchanged between the two works. The objectives, theoretical contribution, and empirical evaluation of the present thesis are substantially different, but this shared background provides the necessary foundation for both.
-
-This chapter begins by introducing the biological learning principles relevant for the thesis, drawing on work on synaptic plasticity, neuromodulation, and three-factor learning rules \parencite{hebb1949organization,schultz1997neural,fremaux2016neuromodulated,gerstner2018eligibility}. It then reviews learning in artificial neural networks, derives the backpropagation update \parencite{rumelhart1986learning}, and explains why backpropagation is considered biologically implausible \parencite{crick1989recent,lillicrap2020backpropagation}. The chapter then turns to perturbation-based learning and addresses the first research objective: to establish the current state of perturbation-based learning. This includes deriving weight perturbation and node perturbation, reviewing important variants of these methods \parencite{williams1992simple,werfel2005learning,hiratani2022stability,zuge2023weight}, comparing how the literature relates WP and NP, and identifying the remaining gaps that motivate the theoretical contribution in Chapter~3.
 
 \subsection{How the brain learns}
 
 Learning can be understood as the process by which the brain builds and updates internal models of the world. \textcite{dehaene2021how} describes learning as constructing such models from experience. These models may represent, for example, the layout of a neighbourhood, the way our limbs respond when we move, or the rules of a language we use in daily life. They are not fixed at birth, but gradually formed through interaction with the environment. In this sense, learning means changing the brain's internal representations so that they better reflect the structure of the world.
 
-These internal representations are implemented in networks of neurons connected by synapses. Neurons transmit information using short electrical impulses, and their likelihood of firing is determined by the signals they receive from other neurons. Synapses determine how strongly one neuron influences another. A strong synapse makes activity in the presynaptic neuron more likely to affect the postsynaptic neuron, while a weak synapse has little influence. When large numbers of neurons interact, their joint activity can encode structured information, such as the sound of a familiar word or the spatial structure of a known street. These learned representations are therefore not stored as explicit symbolic rules, but as distributed patterns of neural activity shaped by synaptic connections.
+These internal representations are implemented in networks of neurons connected by synapses. Each synapse defines a directed connection from a presynaptic neuron, which sends the signal, to a postsynaptic neuron, which receives it. Neurons transmit information using short electrical impulses, and their likelihood of firing is determined by the signals they receive from other neurons. Synapses determine how strongly one neuron influences another. A strong synapse makes activity in the presynaptic neuron more likely to affect the postsynaptic neuron, while a weak synapse has little influence. When large numbers of neurons interact, their joint activity can encode structured information, such as the sound of a familiar word or the spatial structure of a known street. These learned representations are therefore not stored as explicit symbolic rules, but as distributed patterns of neural activity shaped by synaptic connections.
 
 The question is then how these internal models change. Dehaene also describes learning as ``adjusting the parameters of a mental model'' \parencite{dehaene2021how}. In the brain, the natural analogue of such parameters is the strength of synaptic connections. Synapses are plastic: their strengths can increase or decrease depending on experience \parencite{kandel2021principles}. When synaptic strengths change, the influence neurons have on each other also changes, and this modifies the activity patterns the network can produce. Learning in the brain can therefore be viewed as the adjustment of synaptic connections in a large neural network, so that the representations encoded by the network become better adapted to the environment.
 
@@ -26,7 +24,7 @@ Hebbian learning is a central idea in theories of synaptic plasticity. The basic
 \]
 where \(w_{ij}\) denotes the connection strength from neuron \(i\) to neuron \(j\), \(x_i\) and \(x_j\) denote their activities, \(f(\cdot)\) allows the update to depend nonlinearly on neural activity, and \(\eta>0\) sets the learning rate. The important point is that this is a local rule: the synapse does not need access to global information about the task or the network, but only to signals associated with the two neurons it connects.
 
-This type of local learning can still produce meaningful structure. Since Hebbian updates strengthen connections between neurons that are active together, they reinforce statistical regularities in the input. Oja's rule provides a classic example of this idea in a stabilized form: by adding a normalization-like correction to the basic Hebbian mechanism, it allows a single neuron to learn the first principal component of the input distribution \parencite{oja1982simplified}. Hebbian learning therefore shows that purely local, unsupervised plasticity can support nontrivial forms of representation learning.
+Although simple, this type of local learning can produce meaningful structure. Since Hebbian updates strengthen connections between neurons that are active together, they reinforce statistical regularities in the input. Oja's rule provides a classic example of this idea in a stabilized form: by adding a normalization-like correction to the basic Hebbian mechanism, it allows a single neuron to learn the first principal component of the input distribution \parencite{oja1982simplified}. Hebbian learning therefore shows that purely local, unsupervised plasticity can support nontrivial forms of representation learning.
 
 However, the limitation of the learning rule is that this rule contains no feedback about the outcome of the network state. The synapse changes when pre- and postsynaptic activity are correlated, but the update does not depend on whether the resulting action, prediction, or behaviour was good or bad. It therefore cannot by itself explain how the brain learns from reward, error, success, or failure. For this reason, Hebbian plasticity is an important foundation for synaptic learning, but not a complete account of learning in the brain.
 \subsubsection{Neuromodulators and three-factor learning}
@@ -219,7 +217,7 @@ Having established why perturbation-based learning is a relevant family of biolo
 
 Weight perturbation applies perturbation-based learning directly in parameter space by adding random noise to the network weights and biases and observing how the resulting perturbed network affects the loss. For example, if a weight has value \(1.00\), a sampled perturbation of \(0.07\) gives the perturbed weight \(1.07\). If the resulting forward pass gives a lower loss than some baseline, the update should move the weight in the same direction, for example from \(1.00\) to \(1.03\). If the perturbed network performs worse, the update should instead move in the opposite direction. In this way, random parameter fluctuations are correlated with a scalar learning signal to produce a gradient estimate. This is the basic idea behind weight perturbation, but there are several ways to formalize it. Below, we derive the score-function update rule used in the rest of this thesis. At the end of the subsection, we briefly discuss another common formulation, the finite-difference perturbation rule.
 
-In this section, we formalize weight perturbation using the score-function estimator. This estimator is also known as the likelihood-ratio gradient estimator in the Monte Carlo simulation literature \parencite{glynn1990likelihood}. In neural networks and reinforcement learning, the same log-derivative principle is closely associated with the REINFORCE algorithm of \textcite{williams1992simple}, which derives unbiased gradient-following rules from stochastic perturbations and scalar feedback. The resulting multiply-by-perturbation update rule is also used in much of the recent perturbation-learning literature considered here, including \textcite{werfel2005learning}, \textcite{hiratani2022stability}, \textcite{zuge2023weight}, and \textcite{dalm2024effective}. These works motivate and analyze the rule in different ways, for example through small-perturbation limits, expected gradient alignment, learning-curve analysis, or directional-derivative arguments. Here, we derive the update rule explicitly from the score-function identity. This provides a clean way to view weight perturbation as an unbiased Monte Carlo estimator of the gradient of an expected loss under parameter perturbations.
+In this section, we formalize weight perturbation using the score-function estimator. This estimator is also known as the likelihood-ratio gradient estimator in the Monte Carlo simulation literature \parencite{glynn1990likelihood}. In reinforcement learning, the same log-derivative principle is closely associated with the REINFORCE algorithm of \textcite{williams1992simple}, which derives unbiased gradient-following rules from stochastic actions and scalar feedback. Although REINFORCE was not introduced as a perturbation-learning method, it provides the estimator structure underlying the multiply-by-perturbation update used here. This update form is also used in much of the recent perturbation-learning literature considered here, including \textcite{werfel2005learning}, \textcite{hiratani2022stability}, \textcite{zuge2023weight}, and \textcite{dalm2024effective}. These works motivate and analyze the rule in different ways, for example through small-perturbation limits, expected gradient alignment, learning-curve analysis, or directional-derivative arguments. Here, we derive the update rule explicitly from the score-function identity. This provides a clean way to view weight perturbation as an unbiased Monte Carlo estimator of the gradient of an expected loss under parameter perturbations.
 
 Let \(\boldsymbol{\mu}\) denote the deterministic parameter vector that we seek to optimize, consisting of all weights and biases in the network. Instead of minimizing the deterministic loss \(L(\boldsymbol{\mu})\) directly, we introduce a distribution over perturbed parameter vectors,
 \[
@@ -227,7 +225,7 @@ Let \(\boldsymbol{\mu}\) denote the deterministic parameter vector that we seek 
 =
 \mathcal{N}(\boldsymbol{\mu},\sigma^2 I),
 \]
-where \(\sigma>0\) is a fixed perturbation scale. A single draw from this distribution perturbs the full parameter vector at once, meaning that all weights and biases are perturbed simultaneously rather than one parameter at a time. Perturbing one parameter at a time would give a more isolated estimate of each parameter's effect, but would require one or more additional forward evaluations per parameter and is therefore impractical for large networks. From a biological perspective, this is even clearer: with roughly \(10^{14}\) synapses in the human brain, a one-synapse-at-a-time strategy would be infeasible. The parallel approach introduces more randomness into each update, but greatly reduces the number of required forward passes. This use of a single simultaneous perturbation, rather than separate coordinate-wise evaluations, is the central idea of simultaneous perturbation stochastic approximation \parencite{spall1992multivariate}, and the same principle underlies the WP--NP methods considered here. The objective is then the expected loss under this distribution,
+where \(\sigma>0\) is a fixed perturbation scale. A single draw from this distribution perturbs the full parameter vector at once, meaning that all weights and biases are perturbed simultaneously rather than one parameter at a time. Perturbing one parameter at a time would give a more isolated estimate of each parameter's effect, but would require one or more additional forward evaluations per parameter and is therefore impractical for large networks. From a biological perspective, this is even clearer: with roughly \(10^{14}\) synapses in the human brain, a one-synapse-at-a-time strategy would be infeasible. The parallel approach introduces more randomness into each update, but greatly reduces the number of required forward passes. This choice is consistent with the broader simultaneous-perturbation literature, most notably simultaneous perturbation stochastic approximation, where all coordinates are perturbed together rather than estimated one at a time \parencite{spall1992multivariate}. The same principle underlies the WP--NP methods considered here. The objective is then the expected loss under this distribution,
 \[
 F(\boldsymbol{\mu})
 :=
@@ -440,15 +438,13 @@ Compared to WP, the NP update only adds the presynaptic activity term \(x_i^{\el
 \subsection{Other variants of Weight Perturbation and Node Perturbation}
 The weight perturbation and node perturbation rules derived above are both score-function-style estimators, and they are closely related to many of the perturbation-based methods in the recent literature. However, several other variants of weight and node perturbation have also been proposed. Broadly, these methods differ in where the perturbation is applied, how the perturbation is sampled or scaled, and how the scalar learning signal is formed. Some methods perturb weights directly, others perturb neural activity or pre-activations, while others modify the perturbation scale, baseline, or update assignment. 
 
-Since the first research objective of this thesis is to establish the current state of perturbation-based learning literature, we have systematically mapped the most influential and relevant aritcles we found on this. Table~\ref{tab:perturbation_update_rules} collects 21 update rules across 9 papers. Because these papers use different notation, perturb different variables, choose different noise distributions, and define their learning signals in different ways, the table rewrites the methods in a common notation. This makes it possible to compare them directly by perturbed variable, noise sampling, and update rule.
+Since the first research objective of this thesis is to establish the current state of the perturbation-based learning literature, we have systematically mapped the most influential and relevant articles found on this topic. The table was created both to address this research objective and to make sure, as far as possible, that the method derived later in the thesis has not already been proposed in the existing literature. Table~\ref{tab:perturbation_update_rules} collects 21 update rules across 9 articles. Because these articles use different notation, perturb different variables, choose different noise distributions, and define their learning signals in different ways, the table rewrites the methods in a common notation. This makes it possible to compare them directly by perturbed variable, noise sampling, and update rule.
 
 One important distinction shown in Table~\ref{tab:perturbation_update_rules} is between finite-difference methods and score-function-style estimators. The earliest perturbation-based update rules included in the table, such as Madaline Rule III from Widrow and Lehr~\parencite{widrow1990thirty} and the methods of Flower and Jabri~\parencite{flower1992summed}, use finite-difference perturbation rules. In these methods, the update is based on a first-order approximation of how the loss changes under a small perturbation. In other words, they estimate a derivative using the classical idea of dividing a change in loss by the applied perturbation, \(\Delta L / \Delta x\). This leads to update rules where the learning signal is divided by the perturbation. By contrast, the score-function-style estimators derived above multiply the scalar learning signal by the sampled perturbation. An early neural-network example of this type of update is given by \textcite{cauwenberghs1993fast}, and all of the later perturbation-learning papers in Table~\ref{tab:perturbation_update_rules} use the same general score-function-style form, including \textcite{werfel2005learning}, \textcite{cho2011node}, \textcite{hara2017statistical}, \textcite{hiratani2022stability}, \textcite{zuge2023weight}, and \textcite{dalm2024effective}. Because of this, and because the theoretical contribution developed in Chapter~\ref{ch:original_theoretical_contribution} is also based on a score-function-style update rule, the rest of this thesis focuses on score-function estimators. Finite-difference variants are nevertheless included in the table because they are historically important and closely related.
 
-The table also includes several variants that are not studied in detail in the remainder of this thesis. Although many of these methods contain interesting ideas, and it would be interesting to investigate them further, most of them fall outside the scope of this thesis because they are not directly related to the method and theorem developed in Chapter~\ref{ch:original_theoretical_contribution}. One existing variant that is relevant, however, is the perturbation-strength matching idea of \textcite{werfel2005learning}. Their method scales the node perturbation according to the number of incoming units. We return to this method in more detail in later sections, and include it as one of the methods in the empirical evaluation.
+Because Table~\ref{tab:perturbation_update_rules} contains 21 different update rules, not all of them can be included in the empirical evaluation. The evaluation therefore focuses on the WP and NP methods derived above, which serve as the baseline perturbation methods for much of the recent literature in the table, together with one existing variant from \textcite{werfel2005learning}. This variant is included because it changes the scale of node perturbations, and is therefore the closest existing competitor to the scaling method developed later in the thesis. The remaining variants modify other aspects of the learning rule, such as the baseline, weight normalization, or decorrelation of the inputs. These ideas could in principle be combined with the scaling method developed in Chapter~\ref{ch:original_theoretical_contribution}, rather than replacing it. Since they are not direct competitors to the proposed scaling method, and since they are not widely adopted as standard methods in the later perturbation-learning literature, testing them in combination with the new method is left as future work rather than included in the empirical evaluation. However, the broader perturbation-learning literature remains important for the rest of the thesis: several ideas and results from the other papers, including \textcite{zuge2023weight}, \textcite{werfel2005learning}, and \textcite{hiratani2022stability}, become important in the later discussion, starting already in the next section where we compare WP and NP.
 
-In the empirical evaluation, we therefore focus on the score-function-style WP and NP estimators derived above, together with the fan-in-scaled NP variant motivated by \textcite{werfel2005learning}. Other update-rule variants, including finite-difference methods and noisy-baseline methods, are not included in the later experiments. However, the broader perturbation-learning literature remains important for the rest of the thesis. In particular, existing comparisons between WP and NP motivate the next section, and the fan-in scaling idea of \textcite{werfel2005learning} becomes directly relevant when developing the new method in Chapter~\ref{ch:original_theoretical_contribution}.
-
-For compactness, Table~\ref{tab:perturbation_update_rules} rewrites the notation from the different papers using the notation of this thesis. Perturbations are written as a scale multiplied by unit-scale noise, for example \(\delta z = \sigma \xi\) with \(\xi \sim \mathcal{N}(0,I)\), unless another scale is explicitly shown. The scalar learning signal is denoted by \(\Delta \ell\). Let \(U_k\) denote the update direction, so that weights are updated as \(W_k \leftarrow W_k - \eta_W U_k\). For decorrelated variants, \(x_{k-1}^{\star}=R_{k-1}x_{k-1}\), and the decorrelation matrix is updated using
+For compactness, Table~\ref{tab:perturbation_update_rules} rewrites the notation from the different papers using the notation of this thesis. Perturbations are written as a scale multiplied by unit-scale noise, for example \(\delta z=\sigma\xi\) with \(\xi\sim\mathcal{N}(0,I)\), unless another scale is explicitly shown. The scalar learning signal is denoted by \(\Delta \ell\). In general, \(\Delta \ell\) should be understood as the loss from a perturbed forward pass minus some baseline or reference loss. The exact baseline is only written explicitly when it is important for the method itself, as in the noisy-baseline variants of Cho et al.~\parencite{cho2011node} and Hara et al.~\parencite{hara2017statistical}. The main focus of the table is on where the perturbation is applied, how the noise is sampled, and how the resulting update is assigned to the parameters, since these are the aspects most relevant to the theoretical and empirical comparisons in this thesis. Let \(U_k\) denote the update direction, so that weights are updated as \(W_k \leftarrow W_k - \eta_W U_k\). For decorrelated variants, \(x_{k-1}^{\star}=R_{k-1}x_{k-1}\), and the decorrelation matrix is updated using
 \[
 R_k \leftarrow R_k-\eta_R\left(x_k^\star (x_k^\star)^\top-\operatorname{diag}((x_k^\star)^2)\right)R_k .
 \]
@@ -464,7 +460,7 @@ Method-specific constants that are absorbed into the learning rate in the origin
     >{\raggedright\arraybackslash}p{2.3cm}
     >{\raggedright\arraybackslash}p{3.0cm}
     >{\raggedright\arraybackslash}p{2.0cm}
-    >{\centering\arraybackslash}p{3.2cm}
+    >{\centering\arraybackslash}p{4.7cm}
     >{\raggedright\arraybackslash}X
 }
 \toprule
@@ -474,6 +470,149 @@ Method-specific constants that are absorbed into the learning rate in the origin
 \textbf{Noise sampling} &
 \textbf{Update rule} \\
 \midrule
+
+\textcite{widrow1990thirty}
+& Madaline Rule III
+& Pre-activation
+& \(\delta z_i=\sigma\xi_i\);
+no distribution specified
+& \(U_{ij} =
+\frac{\Delta \ell}{\sigma\xi_i}
+x_j\) \\
+\addlinespace
+\midrule
+\addlinespace
+
+\textcite{flower1992summed}
+& Neuron perturbation
+& Pre-activation
+& \(\delta z_i=\sigma\xi_i,\;
+\xi_i \sim \mathrm{Unif}\{-1,1\}\)
+& \(U_{ij}
+=
+\frac{\Delta \ell}{\sigma\xi_i}
+x_j\) \\
+
+\addlinespace
+
+\textcite{flower1992summed}
+& Weight perturbation
+& Weight
+& \(\delta W_{ij}=\sigma\xi_{ij},\;
+\xi_{ij} \sim \mathrm{Unif}\{-1,1\}\)
+& \(U_{ij}
+=
+\frac{\Delta \ell}{\sigma\xi_{ij}}\) \\
+
+\addlinespace
+
+\textcite{flower1992summed}
+& Summed weight neuron perturbation
+& Incoming weights
+& \(\delta W_{ij}=\sigma\xi_{ij},\;
+\xi_{ij} \sim \mathrm{Unif}\{-1,1\}\)
+& \(U_{ij}
+=
+\frac{\Delta \ell}{\sigma\xi_{ij}},
+\quad
+r_i = \sum_m \sigma\xi_{im}x_m\) \\
+\addlinespace
+\midrule
+\addlinespace
+
+\textcite{cauwenberghs1993fast}
+& Stochastic error descent
+& Parameter
+& \(\delta p_i=\sigma\xi_i,\;
+\mathbb{E}[\xi_i\xi_j]=\delta_{ij}\)
+& \(U_i =
+\Delta \ell\,
+\sigma\xi_i\) \\
+\addlinespace
+\midrule
+\addlinespace
+
+\textcite{werfel2005learning}
+& Node perturbation
+& Output
+& \(\delta y_i
+=\sqrt{N}\sigma\xi_i,\;
+\xi_i\sim\mathcal{N}(0,1)\)
+& \(U_{ij} =
+\frac{\Delta \ell}{\sqrt{N}\sigma}
+\xi_i x_j\) \\
+
+\addlinespace
+
+\textcite{werfel2005learning}
+& Weight perturbation
+& Weight
+& \(\delta W_{ij}
+=\sigma\xi_{ij},\;
+\xi_{ij}\sim\mathcal{N}(0,1)\)
+& \(U_{ij} =
+\frac{\Delta \ell}{\sigma}
+\xi_{ij}\) \\
+\addlinespace
+\midrule
+\addlinespace
+
+\textcite{cho2011node}
+& Node perturbation
+& Output
+& \(\delta y_i=\sigma\xi_i,\;
+\xi_i\sim\mathcal{N}(0,1)\)
+& \(U_{ij} =
+\Delta \ell\,
+\sigma\xi_i x_j\),
+\quad
+\(\Delta\ell = L_\xi - L\) \\
+
+\addlinespace
+
+\textcite{cho2011node}
+& Noisy-baseline node perturbation
+& Output
+& \(\delta y_i=\sigma\xi_i,\;
+\delta y_i'=\sigma\zeta_i,\;
+\xi_i,\zeta_i\sim\mathcal{N}(0,1)\)
+& \(U_{ij} =
+\Delta \ell\,
+\sigma\xi_i x_j\),
+\quad
+\(\Delta\ell = L_\xi - L_\zeta\) \\
+\addlinespace
+\midrule
+\addlinespace
+
+\textcite{hara2017statistical}
+& Single node perturbation
+& Output
+& \(\delta y_k=\sigma\xi_k,\;
+\xi_k\sim\mathcal{N}(0,1)\)
+& \(U_{jk} =
+\frac{\Delta \ell}{N\sigma}
+\xi_k x_j\),
+\quad
+\(\Delta\ell = L_\xi - L\) \\
+
+\addlinespace
+
+\textcite{hara2017statistical}
+& Double node perturbation
+& Output
+& \(\delta y_k=\sigma\xi_k,\;
+\delta y_k'=\sigma\zeta_k,\;
+\xi_k,\zeta_k\sim\mathcal{N}(0,1)\)
+& \(U_{jk} =
+\frac{\Delta \ell}{N\sigma}
+\xi_k x_j\),
+\quad
+\(\Delta\ell = L_\xi - L_\zeta\) \\
+
+\addlinespace
+\midrule
+\addlinespace
 
 \textcite{hiratani2022stability}
 & Node perturbation
@@ -499,7 +638,35 @@ Method-specific constants that are absorbed into the learning rate in the origin
 \frac{\|w_i^k\|}
 {\|w_i^k-\eta_W u_i^k\|}
 (w_i^k-\eta_W u_i^k)\) \\
+\addlinespace
+\midrule
+\addlinespace
 
+\textcite{zuge2023weight}
+& Weight perturbation
+& Weight
+& \(\delta W_{ij}
+=\sigma_{\mathrm{WP}}\xi_{ij}^{\mathrm{WP}},\;
+\xi_{ij}^{\mathrm{WP}}\sim\mathcal{N}(0,1)\)
+& \(U_{ij} =
+\frac{\Delta \ell}{\sigma_{\mathrm{WP}}}
+\xi_{ij}^{\mathrm{WP}}\),
+\quad
+\(\sigma_{\mathrm{WP}} =
+\frac{\sigma_{\mathrm{eff}}}{\alpha\sqrt{N_{\mathrm{eff}}}}\) \\
+
+\addlinespace
+
+\textcite{zuge2023weight}
+& Node perturbation
+& Pre-activation
+& \(\delta z_{it}
+=\sigma_{\mathrm{eff}}\xi_{it}^{\mathrm{NP}},\;
+\xi_{it}^{\mathrm{NP}}\sim\mathcal{N}(0,1)\)
+& \(U_{ij} =
+\frac{\Delta \ell}{\sigma_{\mathrm{eff}}}
+\sum_{t=1}^{T}
+\xi_{it}^{\mathrm{NP}} x_{jt}\) \\
 \addlinespace
 \midrule
 \addlinespace
@@ -572,184 +739,6 @@ x_{k-1}^{\top}\) \\
 \frac{\delta a_k}{\|\delta a\|_2^2}
 (x_{k-1}^{\star})^{\top}\) \\
 
-\addlinespace
-\midrule
-\addlinespace
-
-\textcite{flower1992summed}
-& Neuron perturbation
-& Pre-activation
-& \(\delta z_i=\sigma\xi_i,\;
-\xi_i \sim \mathrm{Unif}\{-1,1\}\)
-& \(U_{ij}
-=
-\frac{\Delta \ell}{\sigma\xi_i}
-x_j\) \\
-
-\addlinespace
-
-\textcite{flower1992summed}
-& Weight perturbation
-& Weight
-& \(\delta W_{ij}=\sigma\xi_{ij},\;
-\xi_{ij} \sim \mathrm{Unif}\{-1,1\}\)
-& \(U_{ij}
-=
-\frac{\Delta \ell}{\sigma\xi_{ij}}\) \\
-
-\addlinespace
-
-\textcite{flower1992summed}
-& Summed weight neuron perturbation
-& Incoming weights
-& \(\delta W_{ij}=\sigma\xi_{ij},\;
-\xi_{ij} \sim \mathrm{Unif}\{-1,1\}\)
-& \(U_{ij}
-=
-\frac{\Delta \ell}{\sigma\xi_{ij}},
-\quad
-r_i = \sum_m \sigma\xi_{im}x_m\) \\
-
-\addlinespace
-\midrule
-\addlinespace
-
-\textcite{widrow1990thirty}
-& Madaline Rule III
-& Pre-activation
-& \(\delta z_i=\sigma\xi_i\);
-no distribution specified
-& \(U_{ij} =
-\frac{\Delta \ell}{\sigma\xi_i}
-x_j\) \\
-
-\addlinespace
-\midrule
-\addlinespace
-
-\textcite{cauwenberghs1993fast}
-& Stochastic error descent
-& Weights
-& \(\delta \mathbf{p}=\sigma\boldsymbol{\xi},\;
-\mathbb{E}[\xi_i\xi_j]=\delta_{ij}\)
-& \(U =
-\Delta \ell\,
-\sigma\boldsymbol{\xi}\) \\
-\addlinespace
-\midrule
-\addlinespace
-
-\textcite{werfel2005learning}
-& Node perturbation
-& Output
-& \(\delta \mathbf{y}
-=\sqrt{N}\sigma\boldsymbol{\xi},\;
-\boldsymbol{\xi}\sim\mathcal{N}(0,I_M)\)
-& \(U =
-\frac{\Delta \ell}{\sqrt{N}\sigma}
-\boldsymbol{\xi} \mathbf{x}^{\top}\) \\
-
-\addlinespace
-
-\textcite{werfel2005learning}
-& Weight perturbation
-& Weight
-& \(\delta \mathbf{W}
-=\sigma\boldsymbol{\xi},\;
-\boldsymbol{\xi}\sim\mathcal{N}(0,I_{MN})\)
-& \(U =
-\frac{\Delta \ell}{\sigma}
-\boldsymbol{\xi}\) \\
-
-\addlinespace
-\midrule
-\addlinespace
-
-\textcite{zuge2023weight}
-& Weight perturbation
-& Weight
-& \(\delta W_{ij}
-=\sigma_{\mathrm{WP}}\xi_{ij}^{\mathrm{WP}},\;
-\xi_{ij}^{\mathrm{WP}}\sim\mathcal{N}(0,1)\)
-& \(U_{ij} =
-\frac{\Delta \ell}{\sigma_{\mathrm{WP}}}
-\xi_{ij}^{\mathrm{WP}}\),
-\quad
-\(\sigma_{\mathrm{WP}} =
-\frac{\sigma_{\mathrm{eff}}}{\alpha\sqrt{N_{\mathrm{eff}}}}\) \\
-
-\addlinespace
-
-\textcite{zuge2023weight}
-& Node perturbation
-& Pre-activation
-& \(\delta z_{it}
-=\sigma_{\mathrm{eff}}\xi_{it}^{\mathrm{NP}},\;
-\xi_{it}^{\mathrm{NP}}\sim\mathcal{N}(0,1)\)
-& \(U_{ij} =
-\frac{\Delta \ell}{\sigma_{\mathrm{eff}}}
-\sum_{t=1}^{T}
-\xi_{it}^{\mathrm{NP}} x_{jt}\) \\
-
-\addlinespace
-\midrule
-\addlinespace
-\textcite{cho2011node}
-& Node perturbation
-& Output
-& \(\delta y_i=\sigma\xi_i,\;
-\xi_i\sim\mathcal{N}(0,1)\)
-& \(U_{ij} =
-\Delta \ell\,
-\sigma\xi_i x_j\) \\
-
-\addlinespace
-
-\textcite{cho2011node}
-& Noisy-baseline node perturbation
-& Output
-& \(\delta y_i=\sigma\xi_i,\;
-\delta y_i'=\sigma\zeta_i,\;
-\xi_i,\zeta_i\sim\mathcal{N}(0,1)\)
-& \(U_{ij} =
-\Delta \ell\,
-\sigma\xi_i x_j\),
-\quad
-\(\Delta\ell = L_\xi - L_\zeta\) \\
-
-\addlinespace
-\midrule
-\addlinespace
-
-\textcite{hara2017statistical}
-& Single node perturbation
-& Output
-& \(\delta y_k=\sigma\xi_k,\;
-\xi_k\sim\mathcal{N}(0,1)\)
-& \(U_{jk} =
-\frac{\Delta \ell}{N\sigma}
-\xi_k x_j\),
-\quad
-\(\Delta\ell = L_\xi - L\) \\
-
-\addlinespace
-
-\textcite{hara2017statistical}
-& Double node perturbation
-& Output
-& \(\delta y_k=\sigma\xi_k,\;
-\delta y_k'=\sigma\zeta_k,\;
-\xi_k,\zeta_k\sim\mathcal{N}(0,1)\)
-& \(U_{jk} =
-\frac{\Delta \ell}{N\sigma}
-\xi_k x_j\),
-\quad
-\(\Delta\ell = L_\xi - L_\zeta\) \\
-
-\addlinespace
-\midrule
-\addlinespace
-
 \bottomrule
 \end{tabularx}
 \end{sidewaystable}
@@ -757,7 +746,7 @@ x_j\) \\
 
 \subsection{Existing comparisons of weight and node perturbation}
 
-Weight perturbation and node perturbation are closely related learning rules: both replace explicit gradient computation with random perturbations and a scalar feedback signal. This makes it natural to ask which method should be expected to learn more efficiently. The standard intuition is based on the dimensionality of the perturbation space. Weight perturbation injects noise into individual parameters, whereas node perturbation injects noise into neuron activities and then assigns the resulting learning signal to incoming weights using local presynaptic activity. Since neural networks typically contain many more weights than nodes, node perturbation is often expected to produce less noisy updates and faster learning. However, this dimensionality argument is only an intuition unless it is tied to a specific learning problem and estimator. The existing literature contains a small number of more direct comparisons between weight and node perturbation, which we review in this section.
+Weight perturbation and node perturbation are closely related learning rules: both replace explicit gradient computation with random perturbations and a scalar feedback signal. This makes it natural to ask which method should be expected to learn more efficiently. The standard intuition is based on the dimensionality of the perturbation space. Weight perturbation injects noise into individual parameters, whereas node perturbation injects noise into neuron activities and then assigns the resulting learning signal to incoming weights using local presynaptic activity. Since neural networks typically contain many more weights than nodes, node perturbation is often expected to produce less noisy updates and faster learning. However, this dimensionality argument is only an intuition, not a theoretical proof. The existing literature contains a small number of more direct comparisons between weight and node perturbation, which we review in this section.
 
 An early comparison appears in the finite-difference setting studied by Flower and Jabri~\parencite{flower1992summed}. Their discussion presents standard weight perturbation as computationally more expensive than node perturbation, because weight perturbation estimates the effect of perturbing individual weights rather than nodes. This provides an early version of the idea that perturbing nodes can be more efficient than perturbing individual weights, although the comparison is made in a finite-difference framework rather than in the score-function-style setting considered in the rest of this thesis.
 
@@ -1075,4 +1064,4 @@ At the same time, the similarity is clear enough to make the question natural. I
 
 \subsection{Summary of the Theory}
 
-The first part of this chapter set the background for the thesis by briefly introducing biological learning, learning in artificial neural networks, why backpropagation is biologically implausible, and some biologically plausible alternatives to backpropagation. The rest of the chapter then addressed the first research objective: to establish the current state of perturbation-based learning. At a high level, this meant clarifying what perturbation-based learning is, what the main variants in the literature are, how they relate to each other, and what remains unresolved. We did this by deriving the two main score-function-style perturbation families considered in the literature, weight perturbation and node perturbation, and by mapping related variants in a common notation in Table~\ref{tab:perturbation_update_rules}. We then reviewed existing comparisons between weight perturbation and node perturbation, showing that the relationship between the two families remains incomplete. Finally, we introduced the local reparameterization trick from a different literature as a potentially useful idea for resolving this gap. The next chapter builds on this foundation by developing the original theoretical contribution of the thesis.
+The first part of this chapter set the background for the thesis by briefly introducing biological learning, learning in artificial neural networks, why backpropagation is biologically implausible, and some biologically plausible alternatives to backpropagation. The rest of the chapter then addressed the first research objective by examining what has been proposed and theoretically established in the literature on perturbation-based learning. At a high level, this meant clarifying what perturbation-based learning is, what the main variants in the literature are, how they relate to each other, and what remains unresolved. We did this by deriving the two main score-function-style perturbation families considered in the literature, weight perturbation and node perturbation, and by mapping related variants in a common notation in Table~\ref{tab:perturbation_update_rules}. We then reviewed existing comparisons between weight perturbation and node perturbation, showing that the relationship between the two families remains incomplete. Finally, we introduced the local reparameterization trick from a different literature as a potentially useful idea for resolving this gap. The next chapter builds on this foundation by relating weight and node perturbation through induced noise.
