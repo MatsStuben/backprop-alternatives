@@ -1,180 +1,104 @@
-# backprop-alternatives
+# Backpropagation Alternatives
 
-# IDUN Quick Guide (NTNU HPC)
+This repository contains the code, experiment notebooks, results, and thesis source for a master's thesis on biologically plausible alternatives to backpropagation, with a focus on perturbation-based learning.
 
-This guide shows exactly how to: log in, upload/update files, run GPU jobs, check logs, delete folders, and download results.
+The thesis studies weight perturbation (WP), node perturbation (NP), fan-in-scaled NP, and a theoretically motivated variant called input-scaled node perturbation (IS-NP). The main contribution is to relate weight and node perturbation through the pre-activation noise induced by weight perturbations, and to use this relationship to derive and evaluate IS-NP.
 
----
+## Repository Structure
 
-## 1. Login to IDUN
+```text
+learning_rules_MLP.py        Core implementation of MLPs and perturbation learning rules
+experiment_utils/            Shared utilities for data loading, training, diagnostics, plotting, and exports
+notebooks/                   Colab/local notebooks for final runs and hyperparameter tuning
+Masteroppgave/               LaTeX thesis source, figures, tables, and preview PDF
+results/                     Stored experiment outputs used to generate thesis figures and tables
+testing_files/               Older exploratory and validation scripts
+papers/                      Reference papers used during the thesis work
+```
+
+## Main Code
+
+`learning_rules_MLP.py` is the trusted implementation of the learning rules. The shared modules in `experiment_utils/` wrap this implementation to run full experiments, diagnostic analyses, plots, tables, and exports without duplicating learning-rule logic.
+
+The most important utility modules are:
+
+- `experiment_utils/data.py`: dataset loading and preprocessing
+- `experiment_utils/training.py`: model construction and training loops
+- `experiment_utils/diagnostics.py`: cosine similarity and estimator variance diagnostics
+- `experiment_utils/final_runs.py`: orchestration for final multi-seed experiments
+- `experiment_utils/sigma_search.py`: frozen-backprop perturbation-scale diagnostics
+- `experiment_utils/grid_search.py`: local hyperparameter grid searches
+- `experiment_utils/plotting.py`: figure generation
+
+## Notebooks
+
+The `notebooks/` folder contains the runnable experiment notebooks:
+
+- `sinus-final-run.ipynb`
+- `california-housing-final-run.ipynb`
+- `mnist-final-run.ipynb`
+- `cifar10-final-run.ipynb`
+- `sinus-hyperparam-tuning.ipynb`
+- `california-housing-hyperparam-tuning.ipynb`
+- `mnist-hyperparam-tuning.ipynb`
+- `cifar10-hyperparam-tuning.ipynb`
+- `sinus-scaled-input-diagnostics.ipynb`
+
+The final-run notebooks generate training/test performance plots, cosine similarity plots, estimator variance plots, checkpoint-specific diagnostics, and summary tables. The hyperparameter notebooks contain the frozen-backprop sigma search, local grid search, and editable full-length run.
+
+The notebooks are intended to work both locally and in Google Colab. In Colab, upload or mount a folder containing at least:
+
+```text
+learning_rules_MLP.py
+experiment_utils/
+notebooks/
+```
+
+The notebook setup cells locate the project root and add it to `sys.path`.
+
+## Local Setup
+
+Install the Python dependencies with:
 
 ```bash
-ssh matswm@idun-login1.hpc.ntnu.no
+pip install -r requirements.txt
 ```
 
-This places you on the **login node** (don’t run heavy jobs here).
-
----
-
-## 2. Activate your Conda environment
+or, if using the project metadata:
 
 ```bash
-source ~/venvs/backprop-alt/bin/activate
+pip install -e .
 ```
 
-Verify:
+The main dependencies are PyTorch, torchvision, NumPy, matplotlib, pandas, and scikit-learn.
+
+## Thesis Preview
+
+The thesis source is in `Masteroppgave/`. A local preview can be built with:
 
 ```bash
-which python
+cd Masteroppgave
+tectonic main_preview.tex
 ```
 
----
+The generated preview is written to:
 
-## 3. Upload or update files on IDUN
-
-You always edit code locally, then push to IDUN.
-
-### A) Sync entire project (recommended)
-
-```bash
-rsync -av --progress \
-~/Documents/Kyb/Semester9/Master/myproject/ \
-matswm@idun-login1.hpc.ntnu.no:~/myproject/
+```text
+Masteroppgave/main_preview.pdf
 ```
 
-This only copies changed files.
+The full thesis build uses `main.tex` and the bibliography in `Masteroppgave/references.bib`.
 
-### B) Upload a single file
+## Results
 
-```bash
-scp path/to/your_file.py \
-matswm@idun-login1.hpc.ntnu.no:~/myproject/
+The `results/` folder contains stored experiment outputs. The thesis-facing figures and tables are placed under:
+
+```text
+Masteroppgave/ResultAssets/
 ```
 
----
+These assets are included by the LaTeX source so that the `Masteroppgave/` folder can be uploaded to Overleaf or compiled locally.
 
-## 4. SLURM job file
+## Notes
 
-Edit with:
-
-```bash
-nano run_gpu.slurm
-```
-
-Example content:
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=backprop
-#SBATCH --partition=GPUQ
-#SBATCH --gres=gpu:1
-#SBATCH --time=02:00:00
-#SBATCH --output=logs/%x-%j.out
-
-source ~/venvs/backprop-alt/bin/activate
-cd ~/myproject
-python your_script.py
-```
-
-Save with: **CTRL+O**, then **ENTER**, then **CTRL+X**.
-
----
-
-## 5. Submit a GPU job
-
-```bash
-sbatch run_gpu.slurm
-```
-
-Check status:
-
-```bash
-squeue -u matswm
-```
-
-Watch job output:
-
-```bash
-tail -f logs/<filename>.out
-```
-
----
-
-## 6. Delete old plots
-
-Delete everything in the folder:
-
-```bash
-rm -rf ~/myproject/plots/*
-```
-
-Or recreate folder:
-
-```bash
-rm -rf ~/myproject/plots
-mkdir ~/myproject/plots
-```
-
----
-
-## 7. Download plots/results to your Mac
-
-To your Master folder:
-
-```bash
-scp -r matswm@idun-login1.hpc.ntnu.no:~/myproject/plots \
-~/Documents/Kyb/Semester9/Master/plots
-```
-
-If folder missing locally:
-
-```bash
-mkdir -p ~/Documents/Kyb/Semester9/Master/plots
-```
-
----
-
-## 8. Project structure on IDUN
-
-```
-~/myproject/         # your code
-~/myproject/plots/   # generated figures
-~/myproject/logs/    # SLURM .out logs
-~/venvs/backprop-alt # environment
-```
-
----
-
-## 9. Typical workflow
-
-1. Edit code locally.
-2. Upload to IDUN via rsync:
-
-   ```bash
-   rsync -av --progress ~/Documents/Kyb/Semester9/Master/myproject/ \
-   matswm@idun-login1.hpc.ntnu.no:~/myproject/
-   ```
-3. SSH into IDUN.
-4. Activate env:
-
-   ```bash
-   source ~/venvs/backprop-alt/bin/activate
-   ```
-5. Submit GPU job:
-
-   ```bash
-   sbatch run_gpu.slurm
-   ```
-6. View progress:
-
-   ```bash
-   ```
-
-tail -f logs/*.out
-
-````
-7. Download plots:
-```bash
-scp -r matswm@idun-login1.hpc.ntnu.no:~/myproject/plots \
-~/Documents/Kyb/Semester9/Master/plots
-````
+This repository is organized around the final thesis workflow. Older cluster-specific instructions are no longer part of the main README because the current experiment workflow is based on local/Colab notebooks and shared utility modules.
