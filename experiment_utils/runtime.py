@@ -14,7 +14,7 @@ import torch
 
 METHOD_LABELS = {
     "bp": "BP",
-    "np": "IS NP",
+    "np": "IS-NP",
     "np_fan_in": "Fan-in NP",
     "np_fixed": "Vanilla NP",
     "wp": "WP",

@@ -5,7 +5,7 @@ The goal of the evaluation presented in this chapter is to understand the practi
 
 The first part asks how well perturbation-based learning methods work in practice as alternatives to backpropagation. Backpropagation is included as the standard reference method because it computes the exact gradient that the perturbation methods attempt to estimate. The goal is not to show that perturbation methods outperform backpropagation, but to understand how close they can get, how difficult a task they can solve, and where their performance begins to break down. Therefore, worse performance than backpropagation should not be interpreted as a failure of the empirical evaluation. It is an expected and informative part of the comparison, because it shows the practical cost of replacing exact gradient computation with stochastic perturbation-based estimates. This is important in relation to the motivation of Chapter~\ref{ch:introduction}: if backpropagation is difficult or impossible to use in biologically inspired architectures or other constrained settings, it is useful to know how capable perturbation-based learning methods are as substitutes.
 
-The second and third parts evaluate the practical consequences of the two main theoretical contributions from Chapter~3. The first contribution was the variance comparison between WP and IS-NP. Empirically, this raises the question of whether the lower estimator variance of IS-NP leads to better learning performance, faster convergence, or more stable updates than WP in practice. The second contribution was the derivation of IS-NP as a new node perturbation rule with input-dependent scaling. Empirically, this raises the question of whether scaling perturbations by the actual incoming activation norm improves over the fixed perturbation scale of vanilla NP or the layer-width-based correction of fan-in-scaled NP. The empirical evaluation outlined here is going to test whether the theoretical advantages identified in Chapter~3 translate into practical improvements.
+The second and third parts evaluate the practical consequences of the two main theoretical contributions from Chapter~3. The first contribution was the variance comparison between WP and IS-NP. Empirically, this raises the question of whether the lower estimator variance of IS-NP leads to better learning performance, faster convergence, or more stable updates than WP in practice. The second contribution was the derivation of IS-NP as a new node perturbation rule with input-dependent scaling. Empirically, this raises the question of whether scaling perturbations by the actual incoming activation norm improves over the fixed perturbation scale of vanilla NP or the layer-width-based correction of fan-in-scaled NP. The empirical evaluation outlined here tests whether the theoretical advantages identified in Chapter~3 translate into practical improvements.
 
 To answer these questions, the methods are evaluated on four supervised learning problems of increasing complexity: synthetic sinus regression, California housing regression, MNIST classification, and CIFAR-10 classification. This progression is chosen so that the experiments can show not only whether a method works, but also how its performance changes as the learning problem becomes more difficult. Simple tasks reveal whether the methods can learn under favourable conditions, while harder tasks make the differences between learning rules more visible. The purpose of including difficult tasks is both to clearly reveal differences between methods and to identify where the perturbation methods become inefficient, unstable, or unable to match the reference performance of backpropagation.
 
@@ -428,7 +428,7 @@ These are then averaged before computing cosine similarity:
     =
     \frac{1}{K}
     \sum_{k=1}^{K}
-    \widehat{u}^{(k)}_m,
+    \widehat{u}^{(k)}_m.
 \]
 Averaging over \(K\) independent perturbation estimates reduces the dependence of the diagnostic on any single perturbation draw. This makes the cosine similarity a more stable and fair comparison of the typical update direction produced by each method.
 \[
@@ -567,7 +567,7 @@ BP &
 -- &
 \textbf{\(\eta=0.100\)} \\
 Sinus &
-IS NP &
+IS-NP &
 \(\{0.125, 0.150, 0.175\}\) &
 \(\{0.125, 0.150, 0.175\}\) &
 \textbf{\(\eta=0.150,\ \sigma=0.150\)} \\
@@ -593,7 +593,7 @@ BP &
 -- &
 \textbf{\(\eta=0.100\)} \\
 California housing &
-IS NP &
+IS-NP &
 \(\{0.0200, 0.0270, 0.0350\}\) &
 \(\{0.080, 0.100, 0.120\}\) &
 \textbf{\(\eta=0.0270,\ \sigma=0.100\)} \\
@@ -619,7 +619,7 @@ BP &
 -- &
 \textbf{\(\eta=0.500\)} \\
 MNIST &
-IS NP &
+IS-NP &
 \(\{0.0450, 0.0510, 0.0570\}\) &
 \(\{0.030, 0.0325, 0.035\}\) &
 \textbf{\(\eta=0.0510,\ \sigma=0.0325\)} \\
@@ -645,7 +645,7 @@ BP &
 -- &
 \textbf{\(\eta=0.100\)} \\
 CIFAR-10 &
-IS NP &
+IS-NP &
 \(\{0.0100, 0.0120, 0.0140\}\) &
 \(\{0.016, 0.0175, 0.01875\}\) &
 \textbf{\(\eta=0.0120,\ \sigma=0.0175\)} \\

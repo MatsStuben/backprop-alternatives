@@ -1,4 +1,4 @@
-Metric,BP,IS NP,Fan-in NP,Vanilla NP,WP
+Metric,BP,IS-NP,Fan-in NP,Vanilla NP,WP
 Best train loss,1.63e-4 $\pm$ 1.96e-5,0.00954 $\pm$ 3.17e-4,0.0130 $\pm$ 5.69e-4,0.0180 $\pm$ 4.94e-4,0.0388 $\pm$ 0.00145
 Best test loss,0.00397 $\pm$ 1.76e-5,0.00943 $\pm$ 2.89e-4,0.0123 $\pm$ 5.32e-4,0.0171 $\pm$ 4.56e-4,0.0377 $\pm$ 0.00163
 Best train score,1.00 $\pm$ 0.00,0.960 $\pm$ 0.00265,0.941 $\pm$ 0.00318,0.921 $\pm$ 0.00147,0.809 $\pm$ 0.00742

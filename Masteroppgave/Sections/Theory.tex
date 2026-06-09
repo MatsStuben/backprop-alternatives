@@ -1,22 +1,22 @@
 \section{Theory}
 \label{ch:theory}
 
-Chapter~\ref{ch:introduction} motivated why biologically plausible learning algorithms are interesting. To understand why perturbation methods are relevant in this context, we need to establish two things: first, that the current dominant training algorithm, backpropagation, is difficult to reconcile with biological constraints; and second, that perturbation-based methods satisfy these constraints more naturally. This chapter therefore begins by introducing the biological learning principles relevant for the thesis, drawing on work on synaptic plasticity, neuromodulation, and three-factor learning rules \parencite{hebb1949organization,schultz1997neural,fremaux2016neuromodulated,gerstner2018eligibility}. It then reviews learning in artificial neural networks, derives the backpropagation update \parencite{rumelhart1986learning}, and explains why backpropagation is considered biologically implausible \parencite{crick1989recent,lillicrap2020backpropagation}. With this background in place, the chapter turns to perturbation-based learning \parencite{williams1992simple,werfel2005learning,hiratani2022stability,zuge2023weight} and addresses the first research objective by reviewing what has been proposed and theoretically established in this literature, and identifying the remaining gaps that motivate the theoretical contribution in Chapter~\ref{ch:original_theoretical_contribution}.
+Chapter~\ref{ch:introduction} motivated why biologically plausible learning algorithms are interesting. To understand why perturbation methods are relevant in this context, we need to establish two things: first, that the current dominant training algorithm, backpropagation, is difficult to reconcile with biological constraints; and second, that perturbation-based methods satisfy these constraints more naturally. This chapter therefore begins by introducing the biological learning principles relevant for the thesis, drawing on work on synaptic plasticity, neuromodulation, and three-factor learning rules \parencite{hebb_organization_1949,schultz_neural_1997,fremaux_neuromodulated_2016,gerstner_eligibility_2018}. It then reviews learning in artificial neural networks, derives the backpropagation update \parencite{rumelhart_learning_1986}, and explains why backpropagation is considered biologically implausible \parencite{crick_recent_1989,lillicrap_backpropagation_2020}. With this background in place, the chapter turns to perturbation-based learning \parencite{williams_simple_1992,werfel_learning_2003,hiratani_stability_2022,zuge_weight_2023} and addresses the first research objective by reviewing what has been proposed and theoretically established in this literature, and identifying the remaining gaps that motivate the theoretical contribution in Chapter~\ref{ch:original_theoretical_contribution}.
 
-Parts of the background material in this chapter build on my earlier project thesis on biologically plausible alternatives to backpropagation \parencite{martinussen2025project}. In particular, Sections~2.1 and~2.2, together with the introductory derivations of weight perturbation and node perturbation in Sections~2.4 and~2.5, reuse and adapt theory that remains unchanged between the two works. The objectives, theoretical contribution, and empirical evaluation of the present thesis are substantially different, but this shared background provides the necessary foundation for both.
+Parts of the background material in this chapter build on my earlier project thesis on biologically plausible alternatives to backpropagation \parencite{martinussen_biologically_2025}. In particular, Sections~2.1 and~2.2, together with the introductory derivations of weight perturbation and node perturbation in Sections~2.4 and~2.5, reuse and adapt theory that remains unchanged between the two works. The objectives, theoretical contribution, and empirical evaluation of the present thesis are substantially different, but this shared background provides the necessary foundation for both.
 
 \subsection{How the brain learns}
 
-Learning can be understood as the process by which the brain builds and updates internal models of the world. \textcite{dehaene2021how} describes learning as constructing such models from experience. These models may represent, for example, the layout of a neighbourhood, the way our limbs respond when we move, or the rules of a language we use in daily life. They are not fixed at birth, but gradually formed through interaction with the environment. In this sense, learning means changing the brain's internal representations so that they better reflect the structure of the world.
+Learning can be understood as the process by which the brain builds and updates internal models of the world. \textcite{dehaene_how_2021} describes learning as constructing such models from experience. These models may represent, for example, the layout of a neighbourhood, the way our limbs respond when we move, or the rules of a language we use in daily life. They are not fixed at birth, but gradually formed through interaction with the environment. In this sense, learning means changing the brain's internal representations so that they better reflect the structure of the world.
 
 These internal representations are implemented in networks of neurons connected by synapses. Each synapse defines a directed connection from a presynaptic neuron, which sends the signal, to a postsynaptic neuron, which receives it. Neurons transmit information using short electrical impulses, and their likelihood of firing is determined by the signals they receive from other neurons. Synapses determine how strongly one neuron influences another. A strong synapse makes activity in the presynaptic neuron more likely to affect the postsynaptic neuron, while a weak synapse has little influence. When large numbers of neurons interact, their joint activity can encode structured information, such as the sound of a familiar word or the spatial structure of a known street. These learned representations are therefore not stored as explicit symbolic rules, but as distributed patterns of neural activity shaped by synaptic connections.
 
-The question is then how these internal models change. Dehaene also describes learning as ``adjusting the parameters of a mental model'' \parencite{dehaene2021how}. In the brain, the natural analogue of such parameters is the strength of synaptic connections. Synapses are plastic: their strengths can increase or decrease depending on experience \parencite{kandel2021principles}. When synaptic strengths change, the influence neurons have on each other also changes, and this modifies the activity patterns the network can produce. Learning in the brain can therefore be viewed as the adjustment of synaptic connections in a large neural network, so that the representations encoded by the network become better adapted to the environment.
+The question is then how these internal models change. Dehaene also describes learning as ``adjusting the parameters of a mental model'' \parencite{dehaene_how_2021}. In the brain, the natural analogue of such parameters is the strength of synaptic connections. Synapses are plastic: their strengths can increase or decrease depending on experience \parencite{kandel_principles_2021}. When synaptic strengths change, the influence neurons have on each other also changes, and this modifies the activity patterns the network can produce. Learning in the brain can therefore be viewed as the adjustment of synaptic connections in a large neural network, so that the representations encoded by the network become better adapted to the environment.
 
 There are many biological mechanisms that can modify synaptic strengths, and neuroscience contains several theories of how such mechanisms give rise to learning. The purpose of this section is not to give a complete account of biological plasticity, but to introduce the principles that are most relevant for the learning algorithms studied in this thesis. No single theory fully explains how the brain learns, but the ideas discussed below represent influential mechanisms that have motivated biologically grounded learning algorithms, including perturbation-based learning.
 \subsubsection{Hebbian learning}
 
-Hebbian learning is a central idea in theories of synaptic plasticity. The basic principle, introduced by \textcite{hebb1949organization}, is that a synapse should be strengthened when activity in the presynaptic neuron consistently helps activate the postsynaptic neuron. Abstractly, this can be written as
+Hebbian learning is a central idea in theories of synaptic plasticity. The basic principle, introduced by \textcite{hebb_organization_1949}, is that a synapse should be strengthened when activity in the presynaptic neuron consistently helps activate the postsynaptic neuron. Abstractly, this can be written as
 \[
 \Delta w_{ij}
 =
@@ -24,39 +24,39 @@ Hebbian learning is a central idea in theories of synaptic plasticity. The basic
 \]
 where \(w_{ij}\) denotes the connection strength from neuron \(i\) to neuron \(j\), \(x_i\) and \(x_j\) denote their activities, \(f(\cdot)\) allows the update to depend nonlinearly on neural activity, and \(\eta>0\) sets the learning rate. The important point is that this is a local rule: the synapse does not need access to global information about the task or the network, but only to signals associated with the two neurons it connects.
 
-Although simple, this type of local learning can produce meaningful structure. Since Hebbian updates strengthen connections between neurons that are active together, they reinforce statistical regularities in the input. Oja's rule provides a classic example of this idea in a stabilized form: by adding a normalization-like correction to the basic Hebbian mechanism, it allows a single neuron to learn the first principal component of the input distribution \parencite{oja1982simplified}. Hebbian learning therefore shows that purely local, unsupervised plasticity can support nontrivial forms of representation learning.
+Although simple, this type of local learning can produce meaningful structure. Since Hebbian updates strengthen connections between neurons that are active together, they reinforce statistical regularities in the input. Oja's rule provides a classic example of this idea in a stabilized form: by adding a normalization-like correction to the basic Hebbian mechanism, it allows a single neuron to learn the first principal component of the input distribution \parencite{oja_simplified_1982}. Hebbian learning therefore shows that purely local, unsupervised plasticity can support nontrivial forms of representation learning.
 
-However, the limitation of the learning rule is that this rule contains no feedback about the outcome of the network state. The synapse changes when pre- and postsynaptic activity are correlated, but the update does not depend on whether the resulting action, prediction, or behaviour was good or bad. It therefore cannot by itself explain how the brain learns from reward, error, success, or failure. For this reason, Hebbian plasticity is an important foundation for synaptic learning, but not a complete account of learning in the brain.
+However, the limitation of this learning rule is that it contains no feedback about the outcome of the network state. The synapse changes when pre- and postsynaptic activity are correlated, but the update does not depend on whether the resulting action, prediction, or behaviour was good or bad. It therefore cannot by itself explain how the brain learns from reward, error, success, or failure. For this reason, Hebbian plasticity is an important foundation for synaptic learning, but not a complete account of learning in the brain.
 \subsubsection{Neuromodulators and three-factor learning}
 
-Local synaptic activity alone cannot explain how the brain learns from success, failure, reward, or error. For outcome-dependent learning, synapses also need some form of feedback about whether recent neural activity or behaviour was useful. One important class of such feedback signals is provided by neuromodulators. Unlike ordinary point-to-point synaptic communication, neuromodulatory signals can be broadcast to larger brain regions, allowing many neurons and synapses to receive the same information. Dopamine is a central example. Activity in midbrain dopamine neurons has been associated with reward-prediction errors: it tends to increase when outcomes are better than expected and decrease when outcomes are worse than expected \parencite{schultz1997neural}. Dopamine can therefore act as a global scalar feedback signal, carrying information about whether recent neural activity or behaviour led to a better or worse outcome than expected.
+Local synaptic activity alone cannot explain how the brain learns from success, failure, reward, or error. For outcome-dependent learning, synapses also need some form of feedback about whether recent neural activity or behaviour was useful. One important class of such feedback signals is provided by neuromodulators. Unlike ordinary point-to-point synaptic communication, neuromodulatory signals can be broadcast to larger brain regions, allowing many neurons and synapses to receive the same information. Dopamine is a central example. Activity in midbrain dopamine neurons has been associated with reward-prediction errors: it tends to increase when outcomes are better than expected and decrease when outcomes are worse than expected \parencite{schultz_neural_1997}. Dopamine can therefore act as a global scalar feedback signal, carrying information about whether recent neural activity or behaviour led to a better or worse outcome than expected.
 
-A common theory of outcome-dependent synaptic plasticity is that this global feedback signal is combined with local Hebbian-like information at each synapse. This gives rise to three-factor learning rules, where synaptic change depends on a local presynaptic term, a local postsynaptic term, and a global modulatory signal \parencite{fremaux2016neuromodulated,gerstner2018eligibility}:
+A common theory of outcome-dependent synaptic plasticity is that this global feedback signal is combined with local Hebbian-like information at each synapse. This gives rise to three-factor learning rules, where synaptic change depends on a local presynaptic term, a local postsynaptic term, and a global modulatory signal \parencite{fremaux_neuromodulated_2016,gerstner_eligibility_2018}:
 \begin{equation}
 \Delta w_{ij} = \eta f_i(x_i) f_j(x_j) M .
 \label{eq:three_factor_learning}
 \end{equation}
 Here, \(w_{ij}\) is the synaptic weight from neuron \(i\) to neuron \(j\), \(f_i(x_i)\) and \(f_j(x_j)\) are potentially nonlinear functions of the pre- and postsynaptic states, \(M\) is a global modulatory signal, and \(\eta\) is a learning-rate parameter. The local term \(f_i(x_i)f_j(x_j)\) can be interpreted as an eligibility trace: a synapse-specific signal determined by recent pre- and postsynaptic activity. Intuitively, the global signal \(M\) says whether the outcome was good or bad, while the local eligibility trace indicates how relevant that synapse was for producing the activity that led to the outcome.
 
-Three-factor learning rules address the main limitation of pure Hebbian plasticity by allowing synaptic change to depend on outcome feedback as well as local neural activity. A synapse is therefore not modified only because pre- and postsynaptic neurons were active together, but also according to whether the resulting activity or behaviour was associated with a better or worse outcome. In this way, three-factor rules provide a biologically motivated account of how global feedback can be assigned to individual synapses, making them an influential model of outcome-dependent learning in the brain \parencite{fremaux2016neuromodulated,gerstner2018eligibility}.
+Three-factor learning rules address the main limitation of pure Hebbian plasticity by allowing synaptic change to depend on outcome feedback as well as local neural activity. A synapse is therefore not modified only because pre- and postsynaptic neurons were active together, but also according to whether the resulting activity or behaviour was associated with a better or worse outcome. In this way, three-factor rules provide a biologically motivated account of how global feedback can be assigned to individual synapses, making them an influential model of outcome-dependent learning in the brain \parencite{fremaux_neuromodulated_2016,gerstner_eligibility_2018}.
 
 \subsubsection{Stochasticity in biological learning}
 
-Biological learning takes place in a noisy environment. Neural firing is variable, synaptic transmission is stochastic, and the same stimulus does not always produce exactly the same neural response. Rather than being only a nuisance, this stochasticity provide a source of exploration. When random fluctuations in neural activity or synaptic efficacy are correlated with later reward or error signals, the nervous system can reinforce fluctuations that improve performance and suppress those that do not~\parencite{seung2003learning}. This idea directly motivates perturbation-based learning algorithms, where random perturbations are introduced into weights or neural activities and then correlated with a global scalar learning signal.
+Biological learning takes place in a noisy environment. Neural firing is variable, synaptic transmission is stochastic, and the same stimulus does not always produce exactly the same neural response. Rather than being only a nuisance, this stochasticity provides a source of exploration. When random fluctuations in neural activity or synaptic efficacy are correlated with later reward or error signals, the nervous system can reinforce fluctuations that improve performance and suppress those that do not~\parencite{seung_learning_2003}. This idea directly motivates perturbation-based learning algorithms, where random perturbations are introduced into weights or neural activities and then correlated with a global scalar learning signal.
 
 The biological principles relevant for this thesis can therefore be summarized as follows. The learning rules considered here use information from the presynaptic neuron, the postsynaptic neuron, and a global scalar feedback signal, such as a reward, error, or neuromodulatory signal. In addition, stochastic fluctuations in weights or neural activity can provide the exploration needed for learning. Together, pre- and postsynaptic information, global feedback, and stochastic perturbations form the biological motivation for the perturbation-based learning rules studied later in this chapter.
 \subsection{Learning in artificial neural networks}
 
 \subsubsection{Feedforward neural networks and supervised learning}
 
-An artificial neural network consists of layers of artificial neurons connected by weights. In a feedforward network, information moves in one direction: from the input layer, through one or more hidden layers, and finally to the output layer. Each neuron in a layer receives signals from neurons in the previous layer, and the weights determine how strongly each previous neuron influences it. In this sense, weights play the same abstract role as synapses in biological neural networks. For each neuron, the incoming activations are combined using these weights and a bias term, before the result is passed through a nonlinear activation function. Following the standard notation for feedforward networks \parencite{goodfellow2016deep}, this can be written as
+An artificial neural network consists of layers of artificial neurons connected by weights. In a feedforward network, information moves in one direction: from the input layer, through one or more hidden layers, and finally to the output layer. Each neuron in a layer receives signals from neurons in the previous layer, and the weights determine how strongly each previous neuron influences it. In this sense, weights play the same abstract role as synapses in biological neural networks. For each neuron, the incoming activations are combined using these weights and a bias term, before the result is passed through a nonlinear activation function. Following the standard notation for feedforward networks \parencite{goodfellow_deep_2016}, this can be written as
 \begin{equation}
     z_j^\ell = \sum_i W_{ij}^\ell x_i^{\ell-1} + b_j^\ell,
     \qquad
     x_j^\ell = \phi(z_j^\ell).
     \label{eq:feedforward}
 \end{equation}
-Here, \(z_j^\ell\) is the pre-activation of neuron \(j\) in layer \(\ell\), \(x_i^{\ell-1}\) is the activity of neuron \(i\) in the previous layer, \(W_{ij}^\ell\) is the corresponding weight, \(b_j^\ell\) is a bias, and \(\phi(\cdot)\) is the activation function. Repeating this operation over many layers gives a flexible parameterized function from inputs to outputs. Despite the simplicity of this construction, such networks are highly expressive. The universal approximation theorem shows that feedforward networks can approximate any continuous function on a compact domain, provided that the network is sufficiently large \parencite{hornik1991approximation}. The setting considered here is supervised learning. We are given examples \((\mathbf{x},\mathbf{y})\), where \(\mathbf{x}\) is an input and \(\mathbf{y}\) is the desired output. A network with parameters \(\boldsymbol{\theta}\), collecting all weights and biases, produces a prediction \(\hat{\mathbf{y}}_{\boldsymbol{\theta}}(\mathbf{x})\). The quality of this prediction is measured by a loss function \(L(\mathbf{y},\hat{\mathbf{y}}_{\boldsymbol{\theta}}(\mathbf{x}))\). The aim is not simply to reduce the loss on the observed training examples, but to learn parameters that also perform well on unseen examples drawn from the same underlying distribution. This generalization objective can be written as
+Here, \(z_j^\ell\) is the pre-activation of neuron \(j\) in layer \(\ell\), \(x_i^{\ell-1}\) is the activity of neuron \(i\) in the previous layer, \(W_{ij}^\ell\) is the corresponding weight, \(b_j^\ell\) is a bias, and \(\phi(\cdot)\) is the activation function. Repeating this operation over many layers gives a flexible parameterized function from inputs to outputs. Although this structure is inspired by the brain, where neurons are connected through synapses, it is only a highly simplified abstraction of biological neural networks. In the brain, information does not simply flow in one direction through a fixed sequence of layers, but is shaped by recurrent connections, feedback loops, temporal dynamics, and many other biological mechanisms. Despite the simplicity of this construction, such networks are highly expressive. The universal approximation theorem shows that feedforward networks can approximate any continuous function on a compact domain, provided that the network is sufficiently large \parencite{hornik_approximation_1991}. The setting considered here is supervised learning. We are given examples \((\mathbf{x},\mathbf{y})\), where \(\mathbf{x}\) is an input and \(\mathbf{y}\) is the desired output. A network with parameters \(\boldsymbol{\theta}\), collecting all weights and biases, produces a prediction \(\hat{\mathbf{y}}_{\boldsymbol{\theta}}(\mathbf{x})\). The quality of this prediction is measured by a loss function \(L(\mathbf{y},\hat{\mathbf{y}}_{\boldsymbol{\theta}}(\mathbf{x}))\). The aim is not simply to reduce the loss on the observed training examples, but to learn parameters that also perform well on unseen examples drawn from the same underlying distribution. This generalization objective can be written as
 \begin{equation}
     \boldsymbol{\theta}^\ast
     =
@@ -71,13 +71,13 @@ In principle, learning would amount to solving this optimization problem and dir
 \[
     \boldsymbol{\theta} \leftarrow \boldsymbol{\theta} + \Delta \boldsymbol{\theta}.
 \]
-The practical problem is therefore to determine how the update \(\Delta\boldsymbol{\theta}\) should be computed. This gives a direct connection to Dehaene's description of learning as ``adjusting the parameters of a mental model'' \parencite{dehaene2021how}. In the brain, the relevant parameters are synaptic strengths. In artificial neural networks, they are the weights and biases in \(\boldsymbol{\theta}\). Both cases can therefore be viewed as learning by changing the parameters of a network so that its behaviour better matches the structure of the task or environment.
+The practical problem is therefore to determine how the update \(\Delta\boldsymbol{\theta}\) should be computed. This gives a direct connection to Dehaene's description of learning as ``adjusting the parameters of a mental model'' \parencite{dehaene_how_2021}. In the brain, the relevant parameters are synaptic strengths. In artificial neural networks, they are the weights and biases in \(\boldsymbol{\theta}\). Both cases can therefore be viewed as learning by changing the parameters of a network so that its behaviour better matches the structure of the task or environment.
 
-At this level, biological and artificial learning look similar: both involve modifying connection strengths in a network. The difference appears when we look at how these modifications are computed. In modern artificial neural networks, this is usually done using backpropagation \parencite{rumelhart1986learning}. We therefore next derive the backpropagation update and show why it breaks with the biological learning principles introduced above.
+At this level, biological and artificial learning look similar: both involve modifying connection strengths in a network. The difference appears when we look at how these modifications are computed. In modern artificial neural networks, this is usually done using backpropagation \parencite{rumelhart_learning_1986}. We therefore next derive the backpropagation update and show why it breaks with the biological learning principles introduced above.
 
 \subsubsection{Backpropagation}
 
-Backpropagation \parencite{rumelhart1986learning} is the standard algorithm for training neural networks. Its purpose is to minimize the objective in Eq.~\eqref{eq:theta_star} by updating the parameters in the direction of decreasing loss. For a single input--target pair, this requires the gradient
+Backpropagation \parencite{rumelhart_learning_1986} is the standard algorithm for training neural networks. Its purpose is to minimize the objective in Eq.~\eqref{eq:theta_star} by updating the parameters in the direction of decreasing loss. For a single input--target pair, this requires the gradient
 \begin{equation}
     \nabla_{\boldsymbol{\theta}} L(\mathbf{y}, \hat{\mathbf{y}}_{\boldsymbol{\theta}}(\mathbf{x})),
     \label{eq:backprop_gradient}
@@ -193,20 +193,20 @@ Backpropagation is powerful because it computes the exact gradient of the loss w
 \subsubsection{Why backpropagation is biologically implausible}
 
 The biological difficulty becomes clear from the hidden-layer gradient in Eq.~\eqref{eq:full_backprop_weight}.
-The first factor, \(x_i^{\ell-1}\), is presynaptic activity, and the activation derivative \(\phi'(z_j^\ell)\) is locally available at the postsynaptic neuron. These terms are therefore at least compatible with local synaptic learning. The final factor, however, is different. It requires a precise, signed, neuron-specific error signal from the next layer, weighted by the downstream connections \(W_{jk}^{\ell+1}\). This is not information available at the synapse, nor is it a global scalar feedback signal of the kind discussed in three-factor learning. A literal implementation of backpropagation would therefore require biological circuits to transmit exact error derivatives backward through the network. There is no clear evidence that the brain implements such a mechanism. This requirement also leads to additional well-known difficulties, such as the weight transport problem, where the backward pathway must use the exact transpose of the forward weights \parencite{crick1989recent,lillicrap2020backpropagation}. These requirements make standard backpropagation highly difficult to reconcile with known biological learning mechanisms.
+The first factor, \(x_i^{\ell-1}\), is presynaptic activity, and the activation derivative \(\phi'(z_j^\ell)\) is locally available at the postsynaptic neuron. These terms are therefore at least compatible with local synaptic learning. The final factor, however, is different. It requires a precise, signed, neuron-specific error signal from the next layer, weighted by the downstream connections \(W_{jk}^{\ell+1}\). This is not information available at the synapse, nor is it a global scalar feedback signal of the kind discussed in three-factor learning. A literal implementation of backpropagation would therefore require biological circuits to transmit exact error derivatives backward through the network. There is no clear evidence that the brain implements such a mechanism. This requirement also leads to additional well-known difficulties, such as the weight transport problem, where the backward pathway must use the exact transpose of the forward weights \parencite{crick_recent_1989,lillicrap_backpropagation_2020}. These requirements make standard backpropagation highly difficult to reconcile with known biological learning mechanisms.
 
 This does not reduce the importance of backpropagation as an artificial learning algorithm. It remains powerful precisely because it computes the gradient that perturbation-based methods can only estimate. However, its biological implausibility motivates the search for alternative learning rules that use more biologically realistic ingredients. This is the motivation for the biologically plausible alternatives considered next.
 \subsection{Biologically plausible alternatives to backpropagation}
 
 The biological implausibility of strict backpropagation has motivated a broad range of alternative learning rules. These methods differ in how closely they try to approximate backpropagation and in which biological constraints they prioritize. Some aim to preserve much of the efficiency of backpropagation while relaxing specific assumptions, such as exact symmetric feedback weights. Others avoid explicit backward error propagation altogether, instead relying on local objectives, recurrent dynamics, or stochastic exploration. The purpose of this section is not to review all such methods in detail, but to briefly place perturbation-based learning within the broader landscape of biologically plausible alternatives.
 
-Feedback alignment changes how error information is sent to hidden layers. In standard backpropagation, the error signal is propagated backward using the exact transpose of the forward weight matrices. Feedback alignment replaces these exact backward weights with fixed random feedback weights. Surprisingly, the network can still learn, because the forward weights adapt so that the random feedback signals become useful for reducing the loss \parencite{lillicrap2016random}. Direct feedback alignment takes this idea further by sending the output error directly to each hidden layer through fixed random feedback connections, rather than propagating the error recursively from layer to layer \parencite{nokland2016direct}. These methods are biologically relevant because they relax the weight transport problem: the backward pathway no longer needs to contain an exact copy of the forward weights. However, they still rely on relatively detailed, vector-valued error signals being delivered to hidden layers, and therefore remain closer to backpropagation than to scalar-feedback learning rules.
+Feedback alignment changes how error information is sent to hidden layers. In standard backpropagation, the error signal is propagated backward using the exact transpose of the forward weight matrices. Feedback alignment replaces these exact backward weights with fixed random feedback weights. Surprisingly, the network can still learn, because the forward weights adapt so that the random feedback signals become useful for reducing the loss \parencite{lillicrap_random_2016}. Direct feedback alignment takes this idea further by sending the output error directly to each hidden layer through fixed random feedback connections, rather than propagating the error recursively from layer to layer \parencite{nokland_direct_2016}. These methods are biologically relevant because they relax the weight transport problem: the backward pathway no longer needs to contain an exact copy of the forward weights. However, they still rely on relatively detailed, vector-valued error signals being delivered to hidden layers, and therefore remain closer to backpropagation than to scalar-feedback learning rules.
 
-Predictive coding takes a different approach. Instead of explicitly sending gradients backward through the network, each layer tries to predict the activity of another layer, and learning is driven by the mismatch between predictions and actual activity. In the original predictive coding framework, feedback connections carry predictions from higher to lower cortical areas, while feedforward connections carry residual prediction errors \parencite{rao1999predictive}. Later work showed that, under certain assumptions, these local prediction errors can approximate the error signals used by backpropagation, allowing synaptic updates to be written in a more local Hebbian-like form \parencite{whittington2017approximation}. Predictive coding is therefore attractive from a biological perspective because it uses local prediction errors and recurrent interactions, which are more natural in cortical circuits than a separate backward gradient pass. At the same time, it typically requires structured recurrent dynamics and an inference process before learning, making it more complex than simple scalar-feedback rules.
+Predictive coding takes a different approach. The basic idea is that higher layers generate predictions of lower-layer activity, and any mismatch between the prediction and the actual activity becomes a local prediction error \parencite{rao_predictive_1999}. Learning then changes the connections so that these prediction errors become smaller in the future. Although predictive coding was originally developed as a theory of perception, later work showed that it can also be used for supervised learning in multilayer networks: under certain assumptions, the local prediction errors can approximate the error signals used by backpropagation, allowing the network to learn input-output mappings through more local Hebbian-like updates \parencite{whittington_approximation_2017}. Predictive coding is therefore biologically attractive because it replaces a separate backward gradient pass with local prediction errors and recurrent interaction between layers. However, it is more complex than simple scalar-feedback rules because the network must first settle into a consistent state before the weights are updated.
 
-The forward-forward algorithm removes the backward pass entirely. Instead of one forward pass followed by one backward pass, it uses two forward passes: one with positive data and one with negative data \parencite{hinton2022forward}. Each layer has its own local objective, usually based on a measure of ``goodness'' such as the squared activity in that layer. The weights are updated so that positive examples produce high goodness and negative examples produce low goodness. This makes the method more local than backpropagation, since layers can be trained using their own objectives without propagating derivatives backward through the network. However, the method also changes the learning problem: it depends on how positive and negative examples are constructed, and it does not directly estimate the gradient of a single global supervised loss.
+The forward-forward algorithm removes the backward pass entirely. Instead of computing gradients by sending errors backward through the network, it trains each layer to distinguish between positive and negative examples \parencite{hinton_forward-forward_2022}. A positive example is a real or correct input, such as an image paired with its true label, while a negative example is an incorrect or corrupted input, such as the same image paired with a wrong label. Each layer is trained to produce high activity for positive examples and low activity for negative examples, using a local measure of ``goodness'' such as the squared activity in that layer. The layers are therefore trained in a coordinated way because they see the same positive and negative cases, but each layer uses its own local goodness objective rather than receiving an error signal propagated from the final output. This makes the method more local than backpropagation, because each layer is trained from its own activity rather than from a global gradient. However, the method also changes the learning problem: performance depends on how the positive and negative examples are constructed, and the method does not directly estimate the gradient of one global supervised loss.
 
-Perturbation methods take a different and conceptually simpler approach. Instead of computing an error derivative for each neuron or synapse, they inject random perturbations into either the weights or the neural activities and observe how these perturbations affect performance. If a perturbation improves performance, the corresponding change is reinforced; if it worsens performance, the change is reversed. This gives learning rules that combine local information about the perturbation and neural activity with a global scalar feedback signal, making them closely related to three-factor learning principles. Weight perturbation applies this idea at the level of synaptic weights, while node perturbation applies it at the level of neural activity~\parencite{williams1992simple,werfel2005learning,hiratani2022stability}. Perturbation methods are generally less efficient than backpropagation, but they are attractive because they require only forward evaluations, stochastic fluctuations, and scalar feedback.
+Perturbation methods take a different and conceptually simpler approach. Instead of computing an error derivative for each neuron or synapse, they inject random perturbations into either the weights or the neural activities and observe how these perturbations affect performance. If a perturbation improves performance, the corresponding change is reinforced; if it worsens performance, the change is reversed. This gives learning rules that combine local information about the perturbation and neural activity with a global scalar feedback signal, making them closely related to three-factor learning principles. Weight perturbation applies this idea at the level of synaptic weights, while node perturbation applies it at the level of neural activity~\parencite{williams_simple_1992,werfel_learning_2003,hiratani_stability_2022}. Perturbation methods are generally less efficient than backpropagation, but they are attractive because they require only forward evaluations, stochastic fluctuations, and scalar feedback.
 
 This thesis focuses on perturbation methods for three reasons. First, they align naturally with the biological principles introduced earlier: local synaptic information, stochastic neural activity or synaptic fluctuations, and global modulatory feedback. Second, they are simple enough to implement and analyze in standard neural network models, while still being plausible candidates for more biologically motivated architectures. Third, the literature contains fewer general theoretical comparisons between different perturbation methods than between backpropagation-like alternatives. Rather than surveying many biologically plausible algorithms superficially, this thesis therefore focuses on one family of methods in depth. The remainder of this chapter reviews weight perturbation, node perturbation, and existing comparisons between them, before identifying the literature gap that motivates the original theoretical contribution in Chapter~\ref{ch:original_theoretical_contribution}.
 
@@ -217,7 +217,7 @@ Having established why perturbation-based learning is a relevant family of biolo
 
 Weight perturbation applies perturbation-based learning directly in parameter space by adding random noise to the network weights and biases and observing how the resulting perturbed network affects the loss. For example, if a weight has value \(1.00\), a sampled perturbation of \(0.07\) gives the perturbed weight \(1.07\). If the resulting forward pass gives a lower loss than some baseline, the update should move the weight in the same direction, for example from \(1.00\) to \(1.03\). If the perturbed network performs worse, the update should instead move in the opposite direction. In this way, random parameter fluctuations are correlated with a scalar learning signal to produce a gradient estimate. This is the basic idea behind weight perturbation, but there are several ways to formalize it. Below, we derive the score-function update rule used in the rest of this thesis. At the end of the subsection, we briefly discuss another common formulation, the finite-difference perturbation rule.
 
-In this section, we formalize weight perturbation using the score-function estimator. This estimator is also known as the likelihood-ratio gradient estimator in the Monte Carlo simulation literature \parencite{glynn1990likelihood}. In reinforcement learning, the same log-derivative principle is closely associated with the REINFORCE algorithm of \textcite{williams1992simple}, which derives unbiased gradient-following rules from stochastic actions and scalar feedback. Although REINFORCE was not introduced as a perturbation-learning method, it provides the estimator structure underlying the multiply-by-perturbation update used here. This update form is also used in much of the recent perturbation-learning literature considered here, including \textcite{werfel2005learning}, \textcite{hiratani2022stability}, \textcite{zuge2023weight}, and \textcite{dalm2024effective}. These works motivate and analyze the rule in different ways, for example through small-perturbation limits, expected gradient alignment, learning-curve analysis, or directional-derivative arguments. Here, we derive the update rule explicitly from the score-function identity. This provides a clean way to view weight perturbation as an unbiased Monte Carlo estimator of the gradient of an expected loss under parameter perturbations.
+In this section, we formalize weight perturbation using the score-function estimator. This estimator is also known as the likelihood-ratio gradient estimator in the Monte Carlo simulation literature \parencite{glynn_likelihood_1995}. In reinforcement learning, the same log-derivative principle is closely associated with the REINFORCE algorithm of \textcite{williams_simple_1992}, which derives unbiased gradient-following rules from stochastic actions and scalar feedback. Although REINFORCE was not introduced as a perturbation-learning method, it provides the estimator structure underlying the multiply-by-perturbation update used here. This update form is also used in much of the recent perturbation-learning literature considered here, including \textcite{werfel_learning_2003}, \textcite{hiratani_stability_2022}, and \textcite{zuge_weight_2023}. These works motivate and analyze the rule in different ways, for example through small-perturbation limits, expected gradient alignment, or learning-curve analysis. Here, we derive the update rule explicitly from the score-function identity. This provides a clean way to view weight perturbation as an unbiased Monte Carlo estimator of the gradient of an expected loss under parameter perturbations.
 
 Let \(\boldsymbol{\mu}\) denote the deterministic parameter vector that we seek to optimize, consisting of all weights and biases in the network. Instead of minimizing the deterministic loss \(L(\boldsymbol{\mu})\) directly, we introduce a distribution over perturbed parameter vectors,
 \[
@@ -225,7 +225,7 @@ Let \(\boldsymbol{\mu}\) denote the deterministic parameter vector that we seek 
 =
 \mathcal{N}(\boldsymbol{\mu},\sigma^2 I),
 \]
-where \(\sigma>0\) is a fixed perturbation scale. A single draw from this distribution perturbs the full parameter vector at once, meaning that all weights and biases are perturbed simultaneously rather than one parameter at a time. Perturbing one parameter at a time would give a more isolated estimate of each parameter's effect, but would require one or more additional forward evaluations per parameter and is therefore impractical for large networks. From a biological perspective, this is even clearer: with roughly \(10^{14}\) synapses in the human brain, a one-synapse-at-a-time strategy would be infeasible. The parallel approach introduces more randomness into each update, but greatly reduces the number of required forward passes. This choice is consistent with the broader simultaneous-perturbation literature, most notably simultaneous perturbation stochastic approximation, where all coordinates are perturbed together rather than estimated one at a time \parencite{spall1992multivariate}. The same principle underlies the WP--NP methods considered here. The objective is then the expected loss under this distribution,
+where \(\sigma>0\) is a fixed perturbation scale. A single draw from this distribution perturbs the full parameter vector at once, meaning that all weights and biases are perturbed simultaneously rather than one parameter at a time. Perturbing one parameter at a time would give a more isolated estimate of each parameter's effect, but would require one or more additional forward evaluations per parameter and is therefore impractical for large networks. From a biological perspective, this is even clearer: with roughly \(10^{14}\) synapses in the human brain, a one-synapse-at-a-time strategy would be infeasible. The parallel approach introduces more randomness into each update, but greatly reduces the number of required forward passes. This choice is consistent with the broader simultaneous-perturbation literature, most notably simultaneous perturbation stochastic approximation, where all coordinates are perturbed together rather than estimated one at a time \parencite{spall_multivariate_1992}. The same principle underlies the WP--NP methods considered here. The objective is then the expected loss under this distribution,
 \[
 F(\boldsymbol{\mu})
 :=
@@ -248,7 +248,7 @@ and differentiate under the integral sign:
 =
 \int L(\boldsymbol{\theta})\, \nabla_{\boldsymbol{\mu}} p_{\boldsymbol{\mu}}(\boldsymbol{\theta})\, d\boldsymbol{\theta}.
 \]
-This step is valid under standard regularity conditions, and allows us to make the dependence on $\boldsymbol{\mu}$ explicit inside the integral. Following the score-function estimator~\parencite{Williams1992}, we use the identity
+This step is valid under standard regularity conditions, and allows us to make the dependence on $\boldsymbol{\mu}$ explicit inside the integral. Following the score-function estimator~\parencite{williams_simple_1992}, we use the identity
 \[
 \nabla_{\boldsymbol{\mu}} p_{\boldsymbol{\mu}}(\boldsymbol{\theta})
 =
@@ -306,7 +306,7 @@ In practice, the expectation in \eqref{eq:wp_expectation} cannot be computed exa
 L(\boldsymbol{\mu} + \sigma \boldsymbol{\xi})\, \frac{\xi_i}{\sigma}.
 \]
 
-To reduce the variance of this estimator, one can subtract a baseline \(b\) that does not depend on the individual perturbation \(\xi_i\), following the standard baseline argument used in REINFORCE \parencite{williams1992simple}. The estimator remains unbiased, since
+To reduce the variance of this estimator, one can subtract a baseline \(b\) that does not depend on the individual perturbation \(\xi_i\), following the standard baseline argument used in REINFORCE \parencite{williams_simple_1992}. The estimator remains unbiased, since
 \[
 \mathbb{E}\!\left[b \frac{\xi_i}{\sigma}\right] = 0,
 \]
@@ -440,11 +440,11 @@ The weight perturbation and node perturbation rules derived above are both score
 
 Since the first research objective of this thesis is to establish the current state of the perturbation-based learning literature, we have systematically mapped the most influential and relevant articles found on this topic. The table was created both to address this research objective and to make sure, as far as possible, that the method derived later in the thesis has not already been proposed in the existing literature. Table~\ref{tab:perturbation_update_rules} collects 21 update rules across 9 articles. Because these articles use different notation, perturb different variables, choose different noise distributions, and define their learning signals in different ways, the table rewrites the methods in a common notation. This makes it possible to compare them directly by perturbed variable, noise sampling, and update rule.
 
-One important distinction shown in Table~\ref{tab:perturbation_update_rules} is between finite-difference methods and score-function-style estimators. The earliest perturbation-based update rules included in the table, such as Madaline Rule III from Widrow and Lehr~\parencite{widrow1990thirty} and the methods of Flower and Jabri~\parencite{flower1992summed}, use finite-difference perturbation rules. In these methods, the update is based on a first-order approximation of how the loss changes under a small perturbation. In other words, they estimate a derivative using the classical idea of dividing a change in loss by the applied perturbation, \(\Delta L / \Delta x\). This leads to update rules where the learning signal is divided by the perturbation. By contrast, the score-function-style estimators derived above multiply the scalar learning signal by the sampled perturbation. An early neural-network example of this type of update is given by \textcite{cauwenberghs1993fast}, and all of the later perturbation-learning papers in Table~\ref{tab:perturbation_update_rules} use the same general score-function-style form, including \textcite{werfel2005learning}, \textcite{cho2011node}, \textcite{hara2017statistical}, \textcite{hiratani2022stability}, \textcite{zuge2023weight}, and \textcite{dalm2024effective}. Because of this, and because the theoretical contribution developed in Chapter~\ref{ch:original_theoretical_contribution} is also based on a score-function-style update rule, the rest of this thesis focuses on score-function estimators. Finite-difference variants are nevertheless included in the table because they are historically important and closely related.
+One important distinction shown in Table~\ref{tab:perturbation_update_rules} is between finite-difference methods and score-function-style estimators. The earliest perturbation-based update rules included in the table, such as Madaline Rule III from \textcite{widrow_30_1990} and the methods of \textcite{flower_summed_1992}, use finite-difference perturbation rules. In these methods, the update is based on a first-order approximation of how the loss changes under a small perturbation. In other words, they estimate a derivative using the classical idea of dividing a change in loss by the applied perturbation, \(\Delta L / \Delta x\). This leads to update rules where the learning signal is divided by the perturbation. By contrast, the score-function-style estimators derived above multiply the scalar learning signal by the sampled perturbation. An early neural-network example of this type of update is given by \textcite{cauwenberghs_fast_1992}, and the later perturbation-learning papers in Table~\ref{tab:perturbation_update_rules} use the same general score-function-style form, including \textcite{werfel_learning_2003}, \textcite{cho_node_2011}, \textcite{hara_statistical_2017}, \textcite{hiratani_stability_2022}, and \textcite{zuge_weight_2023}. Because of this, and because the theoretical contribution developed in Chapter~\ref{ch:original_theoretical_contribution} is also based on a score-function-style update rule, the rest of this thesis focuses on score-function estimators. Finite-difference variants are nevertheless included in the table because they are historically important and closely related.
 
-Because Table~\ref{tab:perturbation_update_rules} contains 21 different update rules, not all of them can be included in the empirical evaluation. The evaluation therefore focuses on the WP and NP methods derived above, which serve as the baseline perturbation methods for much of the recent literature in the table, together with one existing variant from \textcite{werfel2005learning}. This variant is included because it changes the scale of node perturbations, and is therefore the closest existing competitor to the scaling method developed later in the thesis. The remaining variants modify other aspects of the learning rule, such as the baseline, weight normalization, or decorrelation of the inputs. These ideas could in principle be combined with the scaling method developed in Chapter~\ref{ch:original_theoretical_contribution}, rather than replacing it. Since they are not direct competitors to the proposed scaling method, and since they are not widely adopted as standard methods in the later perturbation-learning literature, testing them in combination with the new method is left as future work rather than included in the empirical evaluation. However, the broader perturbation-learning literature remains important for the rest of the thesis: several ideas and results from the other papers, including \textcite{zuge2023weight}, \textcite{werfel2005learning}, and \textcite{hiratani2022stability}, become important in the later discussion, starting already in the next section where we compare WP and NP.
+Because Table~\ref{tab:perturbation_update_rules} contains 21 different update rules, not all of them can be included in the empirical evaluation. The evaluation therefore focuses on the WP and NP methods derived above, which serve as the baseline perturbation methods for much of the recent literature in the table, together with one existing variant from \textcite{werfel_learning_2003}. This variant is included because it changes the scale of node perturbations, and is therefore the closest existing competitor to the scaling method developed later in the thesis. The remaining variants modify other aspects of the learning rule, such as the baseline, weight normalization, or decorrelation of the inputs. These ideas could in principle be combined with the scaling method developed in Chapter~\ref{ch:original_theoretical_contribution}, rather than replacing it. Since they are not direct competitors to the proposed scaling method, and since they are not widely adopted as standard methods in the later perturbation-learning literature, testing them in combination with the new method is left as future work rather than included in the empirical evaluation. However, the broader perturbation-learning literature remains important for the rest of the thesis: several ideas and results from the other papers, including \textcite{zuge_weight_2023}, \textcite{werfel_learning_2003}, and \textcite{hiratani_stability_2022}, become important in the later discussion, starting already in the next section where we compare WP and NP.
 
-For compactness, Table~\ref{tab:perturbation_update_rules} rewrites the notation from the different papers using the notation of this thesis. Perturbations are written as a scale multiplied by unit-scale noise, for example \(\delta z=\sigma\xi\) with \(\xi\sim\mathcal{N}(0,I)\), unless another scale is explicitly shown. The scalar learning signal is denoted by \(\Delta \ell\). In general, \(\Delta \ell\) should be understood as the loss from a perturbed forward pass minus some baseline or reference loss. The exact baseline is only written explicitly when it is important for the method itself, as in the noisy-baseline variants of Cho et al.~\parencite{cho2011node} and Hara et al.~\parencite{hara2017statistical}. The main focus of the table is on where the perturbation is applied, how the noise is sampled, and how the resulting update is assigned to the parameters, since these are the aspects most relevant to the theoretical and empirical comparisons in this thesis. Let \(U_k\) denote the update direction, so that weights are updated as \(W_k \leftarrow W_k - \eta_W U_k\). For decorrelated variants, \(x_{k-1}^{\star}=R_{k-1}x_{k-1}\), and the decorrelation matrix is updated using
+For compactness, Table~\ref{tab:perturbation_update_rules} rewrites the notation from the different papers using the notation of this thesis. Perturbations are written as a scale multiplied by unit-scale noise, for example \(\delta z=\sigma\xi\) with \(\xi\sim\mathcal{N}(0,I)\), unless another scale is explicitly shown. The scalar learning signal is denoted by \(\Delta \ell\). In general, \(\Delta \ell\) should be understood as the loss from a perturbed forward pass minus some baseline or reference loss. The exact baseline is only written explicitly when it is important for the method itself, as in the noisy-baseline variants of \textcite{cho_node_2011} and \textcite{hara_statistical_2017}. The main focus of the table is on where the perturbation is applied, how the noise is sampled, and how the resulting update is assigned to the parameters, since these are the aspects most relevant to the theoretical and empirical comparisons in this thesis. Let \(U_k\) denote the update direction, so that weights are updated as \(W_k \leftarrow W_k - \eta_W U_k\). For decorrelated variants, \(x_{k-1}^{\star}=R_{k-1}x_{k-1}\), and the decorrelation matrix is updated using
 \[
 R_k \leftarrow R_k-\eta_R\left(x_k^\star (x_k^\star)^\top-\operatorname{diag}((x_k^\star)^2)\right)R_k .
 \]
@@ -471,7 +471,7 @@ Method-specific constants that are absorbed into the learning rate in the origin
 \textbf{Update rule} \\
 \midrule
 
-\textcite{widrow1990thirty}
+\textcite{widrow_30_1990}
 & Madaline Rule III
 & Pre-activation
 & \(\delta z_i=\sigma\xi_i\);
@@ -483,7 +483,7 @@ x_j\) \\
 \midrule
 \addlinespace
 
-\textcite{flower1992summed}
+\textcite{flower_summed_1992}
 & Neuron perturbation
 & Pre-activation
 & \(\delta z_i=\sigma\xi_i,\;
@@ -495,7 +495,7 @@ x_j\) \\
 
 \addlinespace
 
-\textcite{flower1992summed}
+\textcite{flower_summed_1992}
 & Weight perturbation
 & Weight
 & \(\delta W_{ij}=\sigma\xi_{ij},\;
@@ -506,7 +506,7 @@ x_j\) \\
 
 \addlinespace
 
-\textcite{flower1992summed}
+\textcite{flower_summed_1992}
 & Summed weight neuron perturbation
 & Incoming weights
 & \(\delta W_{ij}=\sigma\xi_{ij},\;
@@ -520,7 +520,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 \midrule
 \addlinespace
 
-\textcite{cauwenberghs1993fast}
+\textcite{cauwenberghs_fast_1992}
 & Stochastic error descent
 & Parameter
 & \(\delta p_i=\sigma\xi_i,\;
@@ -532,7 +532,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 \midrule
 \addlinespace
 
-\textcite{werfel2005learning}
+\textcite{werfel_learning_2003}
 & Node perturbation
 & Output
 & \(\delta y_i
@@ -544,7 +544,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 
 \addlinespace
 
-\textcite{werfel2005learning}
+\textcite{werfel_learning_2003}
 & Weight perturbation
 & Weight
 & \(\delta W_{ij}
@@ -557,7 +557,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 \midrule
 \addlinespace
 
-\textcite{cho2011node}
+\textcite{cho_node_2011}
 & Node perturbation
 & Output
 & \(\delta y_i=\sigma\xi_i,\;
@@ -570,7 +570,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 
 \addlinespace
 
-\textcite{cho2011node}
+\textcite{cho_node_2011}
 & Noisy-baseline node perturbation
 & Output
 & \(\delta y_i=\sigma\xi_i,\;
@@ -585,7 +585,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 \midrule
 \addlinespace
 
-\textcite{hara2017statistical}
+\textcite{hara_statistical_2017}
 & Single node perturbation
 & Output
 & \(\delta y_k=\sigma\xi_k,\;
@@ -598,7 +598,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 
 \addlinespace
 
-\textcite{hara2017statistical}
+\textcite{hara_statistical_2017}
 & Double node perturbation
 & Output
 & \(\delta y_k=\sigma\xi_k,\;
@@ -614,7 +614,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 \midrule
 \addlinespace
 
-\textcite{hiratani2022stability}
+\textcite{hiratani_stability_2022}
 & Node perturbation
 & Pre-activation
 & \(\delta z_k=\sigma\xi_k,\;
@@ -625,7 +625,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 
 \addlinespace
 
-\textcite{hiratani2022stability}
+\textcite{hiratani_stability_2022}
 & Weight-normalized node perturbation
 & Pre-activation
 & \(\delta z_k=\sigma\xi_k,\;
@@ -642,7 +642,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 \midrule
 \addlinespace
 
-\textcite{zuge2023weight}
+\textcite{zuge_weight_2023}
 & Weight perturbation
 & Weight
 & \(\delta W_{ij}
@@ -657,7 +657,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 
 \addlinespace
 
-\textcite{zuge2023weight}
+\textcite{zuge_weight_2023}
 & Node perturbation
 & Pre-activation
 & \(\delta z_{it}
@@ -671,7 +671,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 \midrule
 \addlinespace
 
-\textcite{dalm2024effective}
+\textcite{dalm_effective_2024}
 & Node perturbation
 & Pre-activation
 & \(\delta z_k=\sigma\xi_k,\;
@@ -682,7 +682,7 @@ r_i = \sum_m \sigma\xi_{im}x_m\) \\
 
 \addlinespace
 
-\textcite{dalm2024effective}
+\textcite{dalm_effective_2024}
 & Iterative node perturbation
 & Pre-activation
 & \(\delta z_k=\sigma\xi_k,\;
@@ -694,7 +694,7 @@ x_{k-1}^{\top}\) \\
 
 \addlinespace
 
-\textcite{dalm2024effective}
+\textcite{dalm_effective_2024}
 & Activity-based node perturbation
 & Pre-activation
 & \(\delta z_k=\sigma\xi_k,\;
@@ -706,7 +706,7 @@ x_{k-1}^{\top}\) \\
 
 \addlinespace
 
-\textcite{dalm2024effective}
+\textcite{dalm_effective_2024}
 & Decorrelated node perturbation
 & Pre-activation
 & \(\delta z_k=\sigma\xi_k,\;
@@ -717,7 +717,7 @@ x_{k-1}^{\top}\) \\
 
 \addlinespace
 
-\textcite{dalm2024effective}
+\textcite{dalm_effective_2024}
 & Decorrelated iterative node perturbation
 & Pre-activation
 & \(\delta z_k=\sigma\xi_k,\;
@@ -729,7 +729,7 @@ x_{k-1}^{\top}\) \\
 
 \addlinespace
 
-\textcite{dalm2024effective}
+\textcite{dalm_effective_2024}
 & Decorrelated activity-based node perturbation
 & Pre-activation
 & \(\delta z_k=\sigma\xi_k,\;
@@ -748,13 +748,13 @@ x_{k-1}^{\top}\) \\
 
 Weight perturbation and node perturbation are closely related learning rules: both replace explicit gradient computation with random perturbations and a scalar feedback signal. This makes it natural to ask which method should be expected to learn more efficiently. The standard intuition is based on the dimensionality of the perturbation space. Weight perturbation injects noise into individual parameters, whereas node perturbation injects noise into neuron activities and then assigns the resulting learning signal to incoming weights using local presynaptic activity. Since neural networks typically contain many more weights than nodes, node perturbation is often expected to produce less noisy updates and faster learning. However, this dimensionality argument is only an intuition, not a theoretical proof. The existing literature contains a small number of more direct comparisons between weight and node perturbation, which we review in this section.
 
-An early comparison appears in the finite-difference setting studied by Flower and Jabri~\parencite{flower1992summed}. Their discussion presents standard weight perturbation as computationally more expensive than node perturbation, because weight perturbation estimates the effect of perturbing individual weights rather than nodes. This provides an early version of the idea that perturbing nodes can be more efficient than perturbing individual weights, although the comparison is made in a finite-difference framework rather than in the score-function-style setting considered in the rest of this thesis.
+An early comparison appears in the finite-difference setting studied by \textcite{flower_summed_1992}. Their discussion presents standard weight perturbation as computationally more expensive than node perturbation, because weight perturbation estimates the effect of perturbing individual weights rather than nodes. This provides an early version of the idea that perturbing nodes can be more efficient than perturbing individual weights, although the comparison is made in a finite-difference framework rather than in the score-function-style setting considered in the rest of this thesis.
 
-The most direct analytical comparison between WP and NP is given by Werfel et al.~\parencite{werfel2005learning}. They analyze a linear perceptron with \(N\) inputs and \(M\) outputs, comparing direct gradient descent, node perturbation, and weight perturbation. In this setting, NP perturbs the \(M\)-dimensional output vector, whereas WP perturbs the full \(MN\)-dimensional weight matrix. Their learning-curve analysis shows that, when the scalar update parameter is chosen optimally, NP is slower than direct gradient descent by a factor equal to the number of output units \(M\), while WP is slower than NP by an additional factor equal to the number of input units \(N\). This provides a precise setting in which the lower perturbation dimension of NP leads to faster learning than WP. However, the result is derived for a simplified linear network with a specific input distribution, target function, and objective, and the authors explicitly note that the conclusions are not universally applicable.
+The most direct analytical comparison between WP and NP is given by \textcite{werfel_learning_2003}. They analyze a linear perceptron with \(N\) inputs and \(M\) outputs, comparing direct gradient descent, node perturbation, and weight perturbation. In this setting, NP perturbs the \(M\)-dimensional output vector, whereas WP perturbs the full \(MN\)-dimensional weight matrix. Their learning-curve analysis shows that, when the scalar update parameter is chosen optimally, NP is slower than direct gradient descent by a factor equal to the number of output units \(M\), while WP is slower than NP by an additional factor equal to the number of input units \(N\). This provides a precise setting in which the lower perturbation dimension of NP leads to faster learning than WP. However, the result is derived for a simplified linear network with a specific input distribution, target function, and objective, and the authors explicitly note that the conclusions are not universally applicable.
 
-Züge et al. \parencite{zuge2023weight} provide an important caveat to the usual dimensionality argument. Their analysis concerns temporally extended tasks, where a trial consists of multiple time steps before a scalar feedback signal is received. This is different from the standard feedforward setting considered above, where each input produces one forward pass and one loss value. In temporally extended tasks, the relevant perturbation dimension is more ambiguous: WP perturbs the weights once per trial, while NP may need to perturb neural activity across all time steps. As a result, the effective perturbation space explored by NP can grow with the duration of the trial, and may no longer be smaller than the space explored by WP. Their results therefore show that WP can perform similarly to, or better than, NP in some temporally extended tasks. This does not invalidate the standard argument that NP is often more efficient in feedforward settings, but it shows that the advantage is not universal and depends on the structure of the learning problem.
+\textcite{zuge_weight_2023} provide an important caveat to the usual dimensionality argument. Their analysis concerns temporally extended tasks, where a trial consists of multiple time steps before a scalar feedback signal is received. This is different from the standard feedforward setting considered above, where each input produces one forward pass and one loss value. In temporally extended tasks, the relevant perturbation dimension is more ambiguous: WP perturbs the weights once per trial, while NP may need to perturb neural activity across all time steps. As a result, the effective perturbation space explored by NP can grow with the duration of the trial, and may no longer be smaller than the space explored by WP. Their results therefore show that WP can perform similarly to, or better than, NP in some temporally extended tasks. This does not invalidate the standard argument that NP is often more efficient in feedforward settings, but it shows that the advantage is not universal and depends on the structure of the learning problem.
 
-Later perturbation-learning papers reflect the same interpretation of the WP--NP relationship, often by referring back to the same core results discussed above. \textcite{lillicrap2020backpropagation} describe weight perturbation as a simple scalar-feedback method, but state that it can be improved by perturbing neuron outputs rather than individual weights, referring to early node perturbation work such as \textcite{flower1992summed}. \textcite{hiratani2022stability} make the dimensionality argument more explicit: they describe WP as noisier than NP in the vanilla setting, citing \textcite{werfel2005learning}, while also noting that WP can be competitive with, or better than, NP when the feedback signal is sparse, citing \textcite{zuge2023weight}. \textcite{dalm2024effective} follow the same pattern, describing WP as searching a larger perturbation space because neural networks contain many more weights than nodes, while again citing the possibility that WP can outperform NP in special cases. Thus, later work appears to rely on the same basic picture: NP is often expected to be more efficient because it perturbs a lower-dimensional space, but this expectation is qualified by known exceptions where WP can be competitive or preferable.
+Later perturbation-learning papers reflect the same interpretation of the WP--NP relationship, often by referring back to the same core results discussed above. \textcite{lillicrap_backpropagation_2020} describe weight perturbation as a simple scalar-feedback method, but state that it can be improved by perturbing neuron outputs rather than individual weights, referring to early node perturbation work such as \textcite{flower_summed_1992}. \textcite{hiratani_stability_2022} make the dimensionality argument more explicit: they describe WP as noisier than NP in the vanilla setting, citing \textcite{werfel_learning_2003}, while also noting that WP can be competitive with, or better than, NP when the feedback signal is sparse, citing \textcite{zuge_weight_2023}. Thus, later work appears to rely on the same basic picture: NP is often expected to be more efficient because it perturbs a lower-dimensional space, but this expectation is qualified by known exceptions where WP can be competitive or preferable.
 \subsection{Literature gap}
 
 The literature reviewed above provides a clear intuition for why node perturbation is often expected to be more efficient than weight perturbation: it perturbs a lower-dimensional space. This intuition is supported by analytical results in simplified linear settings and is commonly used in later work to motivate node perturbation over weight perturbation. However, the comparison remains incomplete. The strongest analytical result is derived for linear perceptrons, while later work has pointed to temporally extended tasks as cases where the standard dimensionality argument does not directly apply. Although these temporally extended settings are not the focus of this thesis, their role in the literature is important: they show that the relationship between WP and NP is still treated as conditional and context-dependent, rather than theoretically resolved. Thus, although node perturbation is often presented as the more efficient default, the literature does not provide a general account of the relationship between weight perturbation and node perturbation in nonlinear multilayer networks.
@@ -762,9 +762,9 @@ The literature reviewed above provides a clear intuition for why node perturbati
 This is the gap addressed in Chapter~\ref{ch:original_theoretical_contribution}. Rather than asking only which method performs better empirically, we analyse how the two estimators are related theoretically in multilayer networks. As shown there, this analysis not only clarifies the relationship between weight-level and node-level perturbations, but also motivates a new variant of node perturbation that is designed to better match the perturbations induced by weight perturbation. The key idea used to make this comparison is introduced in the next section, which reviews the local reparameterization trick from variational inference in Bayesian neural networks.
 
 \subsection{The local reparameterization trick}
-\label{sec:local-reparameterization}
+\label{sec:local-reparameterization-trick}
 
-The literature gap identified above concerns the relationship between weight-level and node-level perturbations. To approach this gap, we turn to an idea from a seemingly different context: the local reparameterization trick of \textcite{kingma2015variational}. Kingma et al. study stochastic variational inference in Bayesian neural networks, not perturbation-based learning. However, their work addresses a closely related structural question: when noise is sampled at the level of weights, can its effect instead be represented by equivalent noise at the level of pre-activations? In their setting, they show that this change of perspective reduces the variance of the gradient estimator with respect to the posterior variance parameter \(\sigma_{ij}^{2}\). This subsection reviews their setup and derivation, with particular attention to the similarities and differences between their setting and the WP--NP setting considered in this thesis.
+The literature gap identified above concerns the relationship between weight-level and node-level perturbations. To approach this gap, we turn to an idea from a seemingly different context: the local reparameterization trick of \textcite{kingma_variational_2015}. Kingma et al. study stochastic variational inference in Bayesian neural networks, not perturbation-based learning. However, their work addresses a closely related structural question: when noise is sampled at the level of weights, can its effect instead be represented by equivalent noise at the level of pre-activations? In their setting, they show that this change of perspective reduces the variance of the gradient estimator with respect to the posterior variance parameter \(\sigma_{ij}^{2}\). This subsection reviews their setup and derivation, with particular attention to the similarities and differences between their setting and the WP--NP setting considered in this thesis.
 
 In an ordinary neural network, training produces a single value for each weight. A Bayesian neural network instead treats the weights as random variables. Rather than learning one fixed parameter vector, the goal is to learn a distribution over possible parameter values. This is useful because the distribution can represent uncertainty about the weights, rather than only a single best estimate. Exact Bayesian inference is usually intractable in neural networks, so variational inference introduces a simpler approximate posterior distribution over the weights, denoted \(q_{\phi}(w)\), and optimizes its parameters \(\phi\).
 
